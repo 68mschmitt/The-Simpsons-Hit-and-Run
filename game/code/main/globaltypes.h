@@ -27,4 +27,8 @@ typedef unsigned long long simpsonsUInt64;
 typedef unsigned __int64 simpsonsUInt64;
 #endif
 
+#ifdef RAD_LINUX
+typedef unsigned long long simpsonsUInt64;
+#endif
+
 #endif //GLOBALTYPES_H

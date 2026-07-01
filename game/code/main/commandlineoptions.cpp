@@ -13,15 +13,35 @@
 // System Includes
 //========================================
 // Standard C Library
+#include <ctype.h>
 #include <string.h>
 // Foundation Tech
 #include <raddebug.hpp>
+
+#ifdef RAD_LINUX
+static char* strupr( char* text )
+{
+    if( text == NULL )
+    {
+        return text;
+    }
+
+    for( char* p = text; *p != '\0'; ++p )
+    {
+        *p = static_cast<char>( toupper( static_cast<unsigned char>( *p ) ) );
+    }
+
+    return text;
+}
+#endif
 
 //========================================
 // Project Includes
 //========================================
 #include <main/commandlineoptions.h>
+#ifndef LINUX_POC
 #include <memory/srrmemory.h>
+#endif
 
 //#ifdef RAD_GAMECUBE
 //#define strupr(x) (x)
@@ -67,6 +87,9 @@ short CommandLineOptions::s_defaultMission = 0;
 void CommandLineOptions::InitDefaults()
 {
     simpsonsUInt64 orValue = 1;
+#ifdef LINUX_POC
+    (void)orValue;
+#endif
 
 #ifdef RAD_RELEASE
     // enable CLO_CD_FILES_ONLY in release builds for all platforms
