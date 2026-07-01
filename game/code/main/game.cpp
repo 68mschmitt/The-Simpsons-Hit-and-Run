@@ -56,6 +56,10 @@
 #include <sound/soundmanager.h>
 #include <input/inputmanager.h>
 
+#ifdef LINUX_POC
+#include <port/linux_poc_config.h>
+#endif
+
 //******************************************************************************
 //
 // Global Data, Local Data, Local Classes
@@ -313,7 +317,11 @@ MEMTRACK_POP_GROUP( "Game" );
 //==============================================================================
 void Game::DestroyInstance()
 {
+#ifdef LINUX_POC
+    delete spInstance;
+#else
     delete( GMA_PERSISTENT, spInstance );
+#endif
     spInstance = NULL;
 }
 
@@ -388,7 +396,9 @@ void Game::Initialize()
     mpRenderFlow = RenderFlow::GetInstance();
     mpRenderFlow->DoAllRegistration();
 
+#ifndef LINUX_POC
     CGuiScreenMissionLoad::InitializePermanentVariables();
+#endif
 
 #ifdef RAD_E3
     rReleasePrintf( "\n----------=[  SIMPSONS HIT & RUN - E3 BUILD  ]=----------\n\n" );
@@ -453,6 +463,85 @@ const unsigned PROFILE_CHANNEL_LOAD = 3;
 
 void Game::Run() 
 {
+#ifdef LINUX_POC
+    rReleasePrintf("Game running original Game/GameFlow Linux PoC slice for %u fixed frame(s)\n",
+                   LinuxPocConfig::RuntimeFixedFrameCount);
+
+    auto serviceFrame = [this](unsigned int elapsed, bool countFrame)
+    {
+        BEGIN_PROFILER_FRAME();
+        BEGIN_PROFILE( "GameLoop" );
+
+        if( !mpPlatform->PausedForErrors() )
+        {
+            mpTimerList->Service();
+            mpGameFlow->OnTimerDone(elapsed, NULL);
+
+            if( !mExitNow )
+            {
+                mpRenderFlow->OnTimerDone(elapsed, NULL);
+            }
+        }
+        else if( mpPlatform->IsControllerError() )
+        {
+            if( InputManager::GetInstance() )
+            {
+                InputManager::GetInstance()->Update(elapsed);
+            }
+        }
+
+        ::radFileService();
+        ::radDbgComService();
+        ::radDebugConsoleService();
+
+        if( CommandLineOptions::Get( CLO_MEMORY_MONITOR ) )
+        {
+            ::radMemoryMonitorService();
+        }
+
+        SoundManager::GetInstance()->Update();
+
+        if( mpPlatform->PausedForErrors() )
+        {
+            SoundManager::GetInstance()->UpdateOncePerFrame(0, NUM_CONTEXTS, false, true);
+        }
+
+        p3d::loadManager->SwitchTask();
+
+        if( countFrame )
+        {
+            ++mFrameCount;
+        }
+
+        END_PROFILE( "GameLoop" );
+        END_PROFILER_FRAME();
+    };
+
+    for( unsigned int frame = 1;
+         frame <= LinuxPocConfig::RuntimeFixedFrameCount && !mExitNow;
+         ++frame )
+    {
+        rReleasePrintf("Frame %u elapsed=%u ms\n",
+                       frame,
+                       LinuxPocConfig::FixedElapsedMilliseconds);
+        serviceFrame(LinuxPocConfig::FixedElapsedMilliseconds, true);
+    }
+
+    if( !mExitNow && mpGameFlow->GetCurrentContext() != mpGameFlow->GetNextContext() )
+    {
+        rReleasePrintf("Processing pending startup context before exit\n");
+        serviceFrame(LinuxPocConfig::FixedElapsedMilliseconds, false);
+    }
+
+    if( !mExitNow )
+    {
+        rReleasePrintf("Frame limit reached; requesting CONTEXT_EXIT\n");
+        mpGameFlow->SetContext(CONTEXT_EXIT);
+        serviceFrame(LinuxPocConfig::FixedElapsedMilliseconds, false);
+    }
+
+    rReleasePrintf("Game stopped after %u fixed frame(s)\n", mFrameCount);
+#else
     extern bool g_AllowDebugOutput;
     
 #ifdef DEMO_MODE_PROFILER
@@ -634,6 +723,7 @@ void Game::Run()
 
         END_PROFILER_FRAME();
     }
+#endif // LINUX_POC
 }
 
 

@@ -9,6 +9,8 @@ namespace LinuxPocConfig
 {
     constexpr unsigned int DefaultFixedFrameCount = 300;
     constexpr unsigned int FixedElapsedMilliseconds = 16;
+
+    inline unsigned int RuntimeFixedFrameCount = DefaultFixedFrameCount;
 }
 
 #endif // LINUX_POC_CONFIG_H

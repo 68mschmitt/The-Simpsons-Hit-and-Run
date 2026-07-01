@@ -1,0 +1,19 @@
+// Minimal debug info macros for the Linux PoC.
+#ifndef DEBUGINFO_HPP
+#define DEBUGINFO_HPP
+
+#define CREATE_DEBUGINFO()
+#define DESTROY_DEBUGINFO()
+#define DEBUGINFO_PUSH_SECTION(s)
+#define DEBUGINFO_POP_SECTION()
+#define DEBUGINFO_ADDSCREENTEXT(s)
+#define DEBUGINFO_ADDSCREENTEXTVECTOR(s, v)
+#define DEBUGINFO_ADDSCREENTEXTVECTORCOLOUR(s, v, c)
+#define DEBUGINFO_ADDSCREENLINE(v1, v2, c)
+#define DEBUGINFO_ADDLINE(v1, v2, c)
+#define DEBUGINFO_ADDCIRCLE(v1, v2, c)
+#define DEBUGINFO_ADDSTAR(v1, c, s)
+#define DEBUGINFO_TOGGLE(step)
+#define DEBUGINFO_RENDER()
+
+#endif // DEBUGINFO_HPP

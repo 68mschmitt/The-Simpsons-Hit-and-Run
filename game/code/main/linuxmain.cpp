@@ -10,6 +10,7 @@
 #include <radtime.hpp>
 
 #include <main/commandlineoptions.h>
+#include <main/game.h>
 #include <main/linuxplatform.h>
 #include <main/singletons_linux_poc.h>
 #include <port/linux_poc_config.h>
@@ -134,63 +135,6 @@ namespace
         return options;
     }
 
-    class LinuxPocGame
-    {
-    public:
-        explicit LinuxPocGame(LinuxPlatform* platform)
-            : mPlatform(platform),
-              mFrameCount(0),
-              mInitialized(false)
-        {
-        }
-
-        void Initialize()
-        {
-            rAssert(mPlatform != NULL);
-            mPlatform->InitializePlatform();
-            mInitialized = true;
-
-            rReleasePrintf("Game initialized\n");
-            rReleasePrintf("GameFlow context: ENTRY -> BOOTUP\n");
-        }
-
-        void Run(unsigned int frameLimit)
-        {
-            rAssert(mInitialized);
-
-            for(unsigned int frame = 1; frame <= frameLimit; ++frame)
-            {
-                if(mPlatform->QuitRequested())
-                {
-                    rReleasePrintf("Quit requested before frame %u\n", frame);
-                    break;
-                }
-
-                mFrameCount = frame;
-                rReleasePrintf("Frame %u elapsed=%u ms\n",
-                               mFrameCount,
-                               LinuxPocConfig::FixedElapsedMilliseconds);
-            }
-
-            rReleasePrintf("GameFlow context: BOOTUP -> EXIT\n");
-        }
-
-        void Terminate()
-        {
-            if(!mInitialized)
-            {
-                return;
-            }
-
-            rReleasePrintf("Game terminated after %u frame(s)\n", mFrameCount);
-            mInitialized = false;
-        }
-
-    private:
-        LinuxPlatform* mPlatform;
-        unsigned int mFrameCount;
-        bool mInitialized;
-    };
 }
 
 int main(int argc, char** argv)
@@ -204,16 +148,19 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    LinuxPocConfig::RuntimeFixedFrameCount = options.frameCount;
+
     LinuxPlatform::InitializeFoundation();
     CreateSingletonsLinuxPoc();
 
     LinuxPlatform* platform = LinuxPlatform::CreateInstance();
     rAssert(platform != NULL);
 
-    LinuxPocGame game(platform);
-    game.Initialize();
-    game.Run(options.frameCount);
-    game.Terminate();
+    Game* game = Game::CreateInstance(platform);
+    game->Initialize();
+    game->Run();
+    game->Terminate();
+    Game::DestroyInstance();
 
     DestroySingletonsLinuxPoc();
 

@@ -12,9 +12,9 @@ The fastest useful path is:
 
 ## Current Phase Status
 
-As of 2026-07-01, step 1 has an initial scaffold: CMake configures, `srr2-linux-poc` builds, and the binary runs a fixed-frame no-render loop through Linux-specific platform and singleton stubs. It is still isolated from the original game loop and middleware-heavy systems.
+As of 2026-07-01, step 1 has progressed beyond the initial scaffold: CMake configures, `srr2-linux-poc` builds, and the binary runs a fixed-frame no-render loop through the original `Game` singleton, `GameFlow`, and base `Context` update path. Heavyweight contexts and middleware systems are still represented by Linux PoC shims.
 
-Next recommended increment: compile a slightly larger vertical slice by replacing the local `LinuxPocGame` loop with selected original `Game`/`GameFlow` code plus PoC context, render, sound, input, and loading shims.
+Next recommended increment: replace one shim at a time with a wider original-code or native-backed slice, starting with a basic SDL2 platform shell or a more faithful loading/filesystem shim.
 
 ## High-Level Documents
 

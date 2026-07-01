@@ -30,7 +30,7 @@ Shutdown complete
 
 ## Implementation Status
 
-Status as of 2026-07-01: initial scaffold implemented and validated.
+Status as of 2026-07-01: initial scaffold and first original-code vertical slice implemented and validated.
 
 Build/run commands:
 
@@ -45,12 +45,15 @@ Current behavior:
 - Configures and builds `build/linux-poc/srr2-linux-poc`.
 - Parses PoC options such as `--frames N`.
 - Passes other arguments to `CommandLineOptions::HandleOption` after stripping leading dashes.
-- Initializes a no-window `LinuxPlatform` stub.
-- Runs `CreateSingletonsLinuxPoc()` / `DestroySingletonsLinuxPoc()` logging hooks.
+- Initializes a no-window `LinuxPlatform` stub through `Game::Initialize()`.
+- Runs `CreateSingletonsLinuxPoc()` / `DestroySingletonsLinuxPoc()` to create reduced input, render, loading, and sound services.
+- Creates the original `Game` singleton from `linuxmain.cpp`.
+- Compiles and drives the original `Game::Initialize()`, Linux-PoC `Game::Run()` branch, `Game::Terminate()`, `GameFlow`, and base `Context` update path.
+- Uses PoC contexts for all `ContextEnum` values, with fake bootup loading completion.
 - Runs a deterministic fixed-frame loop using `LinuxPocConfig::FixedElapsedMilliseconds`.
-- Logs `ENTRY -> BOOTUP`, each frame, `BOOTUP -> EXIT`, and clean shutdown.
+- Logs `CONTEXT_ENTRY -> CONTEXT_BOOTUP`, each fixed frame, `CONTEXT_BOOTUP -> CONTEXT_EXIT`, and clean shutdown.
 
-Important limitation: the current target uses a local `LinuxPocGame` in `linuxmain.cpp`. It does not yet compile or drive the original `Game`, `GameFlow`, `Context`, `RenderFlow`, `SoundManager`, `InputManager`, or loading code. That integration remains the next PoC increment.
+Important limitation: the current target still does not compile or drive the original heavyweight bootup/frontend/gameplay contexts, real `RenderFlow`, real `SoundManager`, real `InputManager`, or real `LoadingManager`. Those are represented by PoC shims so the original top-level game and flow lifecycles can run without assets or proprietary middleware.
 
 ## Non-Goals
 

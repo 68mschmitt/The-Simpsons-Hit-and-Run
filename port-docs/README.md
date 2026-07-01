@@ -6,17 +6,20 @@ The repository is not currently buildable on Linux as a normal application. The 
 
 ## Current State
 
-As of 2026-07-01, the initial Linux-native PoC scaffold exists and builds.
+As of 2026-07-01, the Linux-native PoC scaffold exists, builds, and now drives a reduced slice of the original `Game` / `GameFlow` path.
 
 Implemented pieces:
 
 - Root CMake entry point and `cmake/linux-poc.cmake`.
 - `srr2-linux-poc` executable target.
 - `RAD_LINUX`, `RAD_PC`, `_DEBUG`, and `LINUX_POC` compile definitions.
-- `game/code/main/linuxmain.cpp` with fixed-frame startup/update/shutdown logging.
+- `game/code/main/linuxmain.cpp` that creates the original `Game` singleton and runs `Game::Initialize()`, `Game::Run()`, and `Game::Terminate()`.
+- `game/code/main/game.cpp` Linux PoC fixed-frame branch using the original service order.
+- `game/code/gameflow/gameflow.cpp` compiled with PoC context wiring under `LINUX_POC`.
+- `game/code/contexts/linux_poc_contexts.{h,cpp}` logging contexts for all `ContextEnum` values.
 - `game/code/main/linuxplatform.{h,cpp}` no-window platform stub.
-- `game/code/main/singletons_linux_poc.{h,cpp}` reduced singleton lifecycle logging.
-- Minimal RAD/Pure3D/PDDI shim headers in `game/code/port/stubs/`.
+- `game/code/main/singletons_linux_poc.{h,cpp}` reduced singleton lifecycle that creates input, render, loading, and sound shims.
+- Minimal RAD/Pure3D/PDDI, memory, input, render, sound, and loading shim headers/implementations in `game/code/port/`.
 - Linux command-line compatibility fixes in `commandlineoptions.cpp` and `globaltypes.h`.
 
 Validated commands:
@@ -27,7 +30,7 @@ cmake --build build/linux-poc -j2
 ./build/linux-poc/srr2-linux-poc --frames 2 skipfe
 ```
 
-The current PoC is intentionally not yet wired into the original `Game`, `GameFlow`, context, render, sound, input, or loading implementations. It proves that an isolated Linux target can configure, compile, run a deterministic no-render boot loop, and exit cleanly without assets or proprietary middleware.
+The current PoC is intentionally still non-rendering and non-playable. It proves that the original `Game` singleton, `GameFlow` singleton, base `Context` update path, reduced context transitions, and shimmed render/sound/input/loading services can configure, compile, run a deterministic no-render boot loop, and exit cleanly without assets or proprietary middleware.
 
 ## Documents
 

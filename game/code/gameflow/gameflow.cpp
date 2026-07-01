@@ -21,6 +21,10 @@
 //========================================
 #include <gameflow/gameflow.h>
 
+#ifdef LINUX_POC
+#include <contexts/context.h>
+#include <contexts/linux_poc_contexts.h>
+#else
 #include <contexts/entrycontext.h>
 #include <contexts/bootupcontext.h>
 #include <contexts/frontendcontext.h>
@@ -33,6 +37,7 @@
 #include <contexts/supersprint/loadingsupersprintcontext.h>
 #include <contexts/supersprint/supersprintcontext.h>
 #include <contexts/supersprint/supersprintfecontext.h>
+#endif
 
 #include <sound/soundmanager.h>
 #include <main/commandlineoptions.h>
@@ -118,7 +123,11 @@ void GameFlow::DestroyInstance()
 {
     rAssert( spInstance != NULL );
 
+#ifdef LINUX_POC
+    delete spInstance;
+#else
     delete( GMA_PERSISTENT, spInstance );
+#endif
     spInstance = NULL;
 }
 
@@ -263,6 +272,11 @@ void GameFlow::OnTimerDone( unsigned int elapsedtime, void* pUserData )
     // If current and next contexts are different...
     if( mCurrentContext != mNextContext )
     {
+#ifdef LINUX_POC
+        rReleasePrintf("GameFlow context: %s -> %s\n",
+                       LinuxPocContextName(mCurrentContext),
+                       LinuxPocContextName(mNextContext));
+#endif
         mpContexts[mCurrentContext]->Stop( mNextContext );
         mpContexts[mNextContext]->Start( mCurrentContext );
         
@@ -330,6 +344,12 @@ GameFlow::GameFlow() :
     //
     // Create the context controllers.
     //
+#ifdef LINUX_POC
+    for( i = CONTEXT_ENTRY; i < NUM_CONTEXTS; ++i )
+    {
+        mpContexts[i] = CreateLinuxPocContext( static_cast<ContextEnum>( i ) );
+    }
+#else
     mpContexts[CONTEXT_ENTRY]               = GetEntryContext();
     mpContexts[CONTEXT_BOOTUP]              = GetBootupContext();
     mpContexts[CONTEXT_FRONTEND]            = GetFrontEndContext();
@@ -342,6 +362,7 @@ GameFlow::GameFlow() :
     mpContexts[CONTEXT_GAMEPLAY]            = GetGameplayContext();
     mpContexts[CONTEXT_PAUSE]               = GetPauseContext();
     mpContexts[CONTEXT_EXIT]                = GetExitContext();
+#endif
     
     //
     // Since we're starting with the entry context, call its Start function
