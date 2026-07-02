@@ -9,6 +9,11 @@
 
 #include <main/platform.h>
 
+#ifdef LINUX_POC_WITH_SDL
+struct SDL_Renderer;
+struct SDL_Window;
+#endif
+
 class LinuxPlatform : public Platform
 {
 public:
@@ -43,6 +48,11 @@ public:
     virtual void OnControllerError(const char* msg);
     virtual bool OnDriveError(radFileError error, const char* pDriveName, void* pUserData);
 
+    void ServiceHostEvents();
+    void BeginHostFrame(unsigned int elapsedMilliseconds);
+    void EndHostFrame();
+
+    bool HasHostWindow() const { return mHostWindowActive; }
     bool QuitRequested() const { return mQuitRequested; }
     void RequestQuit() { mQuitRequested = true; }
 
@@ -59,10 +69,31 @@ private:
     virtual void InitializePure3D();
     virtual void ShutdownPure3D();
 
+#ifdef LINUX_POC_WITH_SDL
+    bool ShouldAttemptSdlWindow() const;
+    void InitializeSdlShell();
+    void ShutdownSdlShell();
+    void OpenSdlController(int deviceIndex);
+    void CloseSdlController(int instanceId);
+    int FindSdlControllerSlot(int instanceId) const;
+    void HandleSdlKeyboardEvent(unsigned int scancode, const char* keyName, bool pressed);
+    void HandleSdlControllerButtonEvent(int instanceId, unsigned int button, const char* buttonName, bool pressed);
+#endif
+
     static LinuxPlatform* spInstance;
 
     bool mInitialized;
     bool mQuitRequested;
+    bool mHostWindowActive;
+    unsigned int mPresentedFrameCount;
+
+#ifdef LINUX_POC_WITH_SDL
+    bool mSdlInitialized;
+    SDL_Window* mpSdlWindow;
+    SDL_Renderer* mpSdlRenderer;
+    void* mpSdlControllers[4];
+    int mSdlControllerInstanceIds[4];
+#endif
 };
 
 #endif // LINUXPLATFORM_H

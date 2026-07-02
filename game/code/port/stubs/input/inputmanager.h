@@ -13,6 +13,8 @@ namespace Input
     };
 
     constexpr unsigned int MaxControllers = 4;
+    constexpr unsigned int MaxHostKeys = 512;
+    constexpr unsigned int MaxHostControllerButtons = 32;
 }
 
 class InputManager
@@ -40,6 +42,11 @@ public:
     float GetValue(unsigned int controllerIndex, unsigned int inputIndex) const;
     UserController* GetController(unsigned int controllerIndex);
 
+    void OnHostKeyboardEvent(unsigned int scancode, const char* keyName, bool pressed);
+    bool IsHostKeyDown(unsigned int scancode) const;
+    void OnHostControllerButtonEvent(unsigned int controllerIndex, unsigned int button, const char* buttonName, bool pressed);
+    bool IsHostControllerButtonDown(unsigned int controllerIndex, unsigned int button) const;
+
     int RegisterMappable(unsigned int index, Mappable* pMappable);
     void UnregisterMappable(unsigned int index, int handle);
     void UnregisterMappable(unsigned int index, Mappable* pMappable);
@@ -66,6 +73,8 @@ private:
     Input::ActiveState mGameState;
     bool mRumbleEnabled;
     bool mResetEnabled;
+    bool mHostKeyDown[Input::MaxHostKeys];
+    bool mHostControllerButtonDown[Input::MaxControllers][Input::MaxHostControllerButtons];
     int mRegisteredControllerID[4];
 };
 

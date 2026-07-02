@@ -57,6 +57,7 @@
 #include <input/inputmanager.h>
 
 #ifdef LINUX_POC
+#include <main/linuxplatform.h>
 #include <port/linux_poc_config.h>
 #endif
 
@@ -464,13 +465,33 @@ const unsigned PROFILE_CHANNEL_LOAD = 3;
 void Game::Run() 
 {
 #ifdef LINUX_POC
-    rReleasePrintf("Game running original Game/GameFlow Linux PoC slice for %u fixed frame(s)\n",
-                   LinuxPocConfig::RuntimeFixedFrameCount);
+    const bool runUntilQuit = (LinuxPocConfig::RuntimeFixedFrameCount == 0);
+    LinuxPlatform* linuxPlatform = LinuxPlatform::GetInstance();
 
-    auto serviceFrame = [this](unsigned int elapsed, bool countFrame)
+    if(runUntilQuit)
+    {
+        rReleasePrintf("Game running original Game/GameFlow Linux PoC slice until host quit\n");
+        if(linuxPlatform != NULL && !linuxPlatform->HasHostWindow())
+        {
+            rReleasePrintf("Warning: --until-quit is active without an SDL window; use another quit path to stop the PoC\n");
+        }
+    }
+    else
+    {
+        rReleasePrintf("Game running original Game/GameFlow Linux PoC slice for %u fixed frame(s)\n",
+                       LinuxPocConfig::RuntimeFixedFrameCount);
+    }
+
+    auto serviceFrame = [this, linuxPlatform](unsigned int elapsed, bool countFrame)
     {
         BEGIN_PROFILER_FRAME();
         BEGIN_PROFILE( "GameLoop" );
+
+        if(linuxPlatform != NULL)
+        {
+            linuxPlatform->ServiceHostEvents();
+            linuxPlatform->BeginHostFrame(elapsed);
+        }
 
         if( !mpPlatform->PausedForErrors() )
         {
@@ -508,6 +529,11 @@ void Game::Run()
 
         p3d::loadManager->SwitchTask();
 
+        if(linuxPlatform != NULL)
+        {
+            linuxPlatform->EndHostFrame();
+        }
+
         if( countFrame )
         {
             ++mFrameCount;
@@ -518,13 +544,19 @@ void Game::Run()
     };
 
     for( unsigned int frame = 1;
-         frame <= LinuxPocConfig::RuntimeFixedFrameCount && !mExitNow;
+         (runUntilQuit || frame <= LinuxPocConfig::RuntimeFixedFrameCount) && !mExitNow;
          ++frame )
     {
         rReleasePrintf("Frame %u elapsed=%u ms\n",
                        frame,
                        LinuxPocConfig::FixedElapsedMilliseconds);
         serviceFrame(LinuxPocConfig::FixedElapsedMilliseconds, true);
+
+        if(linuxPlatform != NULL && linuxPlatform->QuitRequested())
+        {
+            rReleasePrintf("Host platform requested quit; leaving frame loop\n");
+            break;
+        }
     }
 
     if( !mExitNow && mpGameFlow->GetCurrentContext() != mpGameFlow->GetNextContext() )

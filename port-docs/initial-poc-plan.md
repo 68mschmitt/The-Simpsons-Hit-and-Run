@@ -30,7 +30,7 @@ Shutdown complete
 
 ## Implementation Status
 
-Status as of 2026-07-01: initial scaffold and first original-code vertical slice implemented and validated.
+Status as of 2026-07-01: initial scaffold, first original-code vertical slice, and an optional SDL2 host shell implemented and validated.
 
 Build/run commands:
 
@@ -38,22 +38,25 @@ Build/run commands:
 cmake -S . -B build/linux-poc
 cmake --build build/linux-poc -j2
 ./build/linux-poc/srr2-linux-poc --frames 2 skipfe
+./build/linux-poc/srr2-linux-poc --headless --frames 1
+SDL_VIDEODRIVER=dummy ./build/linux-poc/srr2-linux-poc --window --window-size 320x200 --frames 1
 ```
 
 Current behavior:
 
 - Configures and builds `build/linux-poc/srr2-linux-poc`.
-- Parses PoC options such as `--frames N`.
+- Parses PoC options such as `--frames N`, `--until-quit`, `--headless`, `--window`, and `--window-size WxH`.
 - Passes other arguments to `CommandLineOptions::HandleOption` after stripping leading dashes.
-- Initializes a no-window `LinuxPlatform` stub through `Game::Initialize()`.
+- Initializes `LinuxPlatform` through `Game::Initialize()` in either headless mode or an SDL2 host-window mode.
 - Runs `CreateSingletonsLinuxPoc()` / `DestroySingletonsLinuxPoc()` to create reduced input, render, loading, and sound services.
 - Creates the original `Game` singleton from `linuxmain.cpp`.
 - Compiles and drives the original `Game::Initialize()`, Linux-PoC `Game::Run()` branch, `Game::Terminate()`, `GameFlow`, and base `Context` update path.
 - Uses PoC contexts for all `ContextEnum` values, with fake bootup loading completion.
-- Runs a deterministic fixed-frame loop using `LinuxPocConfig::FixedElapsedMilliseconds`.
+- Runs a deterministic fixed-frame loop using `LinuxPocConfig::FixedElapsedMilliseconds`, or an explicit `--until-quit` loop.
+- When SDL2 is available and not disabled, creates a host window, clears/presents one frame per game-loop tick, polls SDL window/keyboard/controller events, routes keyboard and controller button state into the input shim, and exits on window close or Escape.
 - Logs `CONTEXT_ENTRY -> CONTEXT_BOOTUP`, each fixed frame, `CONTEXT_BOOTUP -> CONTEXT_EXIT`, and clean shutdown.
 
-Important limitation: the current target still does not compile or drive the original heavyweight bootup/frontend/gameplay contexts, real `RenderFlow`, real `SoundManager`, real `InputManager`, or real `LoadingManager`. Those are represented by PoC shims so the original top-level game and flow lifecycles can run without assets or proprietary middleware.
+Important limitation: the current target still does not compile or drive the original heavyweight bootup/frontend/gameplay contexts, real `RenderFlow`, real `SoundManager`, real `InputManager`, or real `LoadingManager`. Those are represented by PoC shims so the original top-level game and flow lifecycles can run without assets or proprietary middleware. The SDL2 shell only clears/presents a host window; it does not render game content.
 
 ## Non-Goals
 
@@ -313,11 +316,11 @@ The initial PoC is successful when all of these are true:
 
 ## Next Milestone After This PoC
 
-After the non-rendering boot loop works, add an SDL2-backed platform shell:
+The SDL2-backed platform shell now exists at a minimal level:
 
-- Create a window.
-- Poll keyboard/gamepad events.
-- Clear the screen once per frame.
-- Keep the game update loop independent from SDL timing.
+- Creates a window when SDL2 is available and a display is available or `--window` is passed.
+- Polls window, keyboard, and controller events.
+- Clears/presents the host window once per frame.
+- Keeps the game update loop on the deterministic PoC timestep.
 
-Do not load real assets until the SDL shell and no-op runtime are stable.
+Next recommended increment: make the loading/filesystem shim more faithful by normalizing paths, recording all asset requests, probing an optional data root, and reporting missing files with case-sensitivity diagnostics. Do not load real assets until the SDL shell and no-op runtime are stable.

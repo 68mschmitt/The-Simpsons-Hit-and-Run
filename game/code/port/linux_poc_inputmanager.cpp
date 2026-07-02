@@ -75,8 +75,18 @@ bool InputManager::IsRumbleEnabled() const
 
 float InputManager::GetValue(unsigned int controllerIndex, unsigned int inputIndex) const
 {
-    (void)controllerIndex;
-    (void)inputIndex;
+    if(controllerIndex == 0 && inputIndex < Input::MaxHostKeys && mHostKeyDown[inputIndex])
+    {
+        return 1.0f;
+    }
+
+    if(controllerIndex < Input::MaxControllers &&
+       inputIndex < Input::MaxHostControllerButtons &&
+       mHostControllerButtonDown[controllerIndex][inputIndex])
+    {
+        return 1.0f;
+    }
+
     return 0.0f;
 }
 
@@ -84,6 +94,69 @@ UserController* InputManager::GetController(unsigned int controllerIndex)
 {
     (void)controllerIndex;
     return nullptr;
+}
+
+void InputManager::OnHostKeyboardEvent(unsigned int scancode, const char* keyName, bool pressed)
+{
+    if(scancode >= Input::MaxHostKeys)
+    {
+        rReleasePrintf("InputManager host key ignored: scancode=%u name=%s state=%s\n",
+                       scancode,
+                       keyName != nullptr && keyName[0] != '\0' ? keyName : "unknown",
+                       pressed ? "down" : "up");
+        return;
+    }
+
+    if(mHostKeyDown[scancode] == pressed)
+    {
+        return;
+    }
+
+    mHostKeyDown[scancode] = pressed;
+    rReleasePrintf("InputManager host key %s: scancode=%u name=%s\n",
+                   pressed ? "down" : "up",
+                   scancode,
+                   keyName != nullptr && keyName[0] != '\0' ? keyName : "unknown");
+}
+
+bool InputManager::IsHostKeyDown(unsigned int scancode) const
+{
+    return scancode < Input::MaxHostKeys && mHostKeyDown[scancode];
+}
+
+void InputManager::OnHostControllerButtonEvent(unsigned int controllerIndex,
+                                               unsigned int button,
+                                               const char* buttonName,
+                                               bool pressed)
+{
+    if(controllerIndex >= Input::MaxControllers || button >= Input::MaxHostControllerButtons)
+    {
+        rReleasePrintf("InputManager host controller button ignored: controller=%u button=%u name=%s state=%s\n",
+                       controllerIndex,
+                       button,
+                       buttonName != nullptr && buttonName[0] != '\0' ? buttonName : "unknown",
+                       pressed ? "down" : "up");
+        return;
+    }
+
+    if(mHostControllerButtonDown[controllerIndex][button] == pressed)
+    {
+        return;
+    }
+
+    mHostControllerButtonDown[controllerIndex][button] = pressed;
+    rReleasePrintf("InputManager host controller button %s: controller=%u button=%u name=%s\n",
+                   pressed ? "down" : "up",
+                   controllerIndex,
+                   button,
+                   buttonName != nullptr && buttonName[0] != '\0' ? buttonName : "unknown");
+}
+
+bool InputManager::IsHostControllerButtonDown(unsigned int controllerIndex, unsigned int button) const
+{
+    return controllerIndex < Input::MaxControllers &&
+           button < Input::MaxHostControllerButtons &&
+           mHostControllerButtonDown[controllerIndex][button];
 }
 
 int InputManager::RegisterMappable(unsigned int index, Mappable* pMappable)
@@ -171,6 +244,8 @@ InputManager::InputManager()
     : mGameState(Input::ACTIVE_NONE),
       mRumbleEnabled(false),
       mResetEnabled(false),
+      mHostKeyDown{},
+      mHostControllerButtonDown{},
       mRegisteredControllerID{-1, -1, -1, -1}
 {
 }
