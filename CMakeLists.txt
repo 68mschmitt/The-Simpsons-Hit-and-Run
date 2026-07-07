@@ -41,7 +41,10 @@ if(CCACHE_FOUND)
     set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
 endif()
 
-if(NOT VITA)
+# SDL3 support in pddi/gl/display_win32/gldisplay.cpp has API drift and does
+# not compile yet, so SDL3 is opt-in and SDL2 is the default.
+option(SRR2_USE_SDL3 "Prefer SDL3 over SDL2 when available" OFF)
+if(NOT VITA AND SRR2_USE_SDL3)
 	find_package(SDL3)
 endif()
 if(SDL3_FOUND)
@@ -55,6 +58,12 @@ endif()
 find_package(PNG REQUIRED)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
+if(APPLE)
+	# The system OpenAL framework is deprecated and lacks efx.h; prefer
+	# Homebrew openal-soft when present.
+	list(APPEND CMAKE_PREFIX_PATH /opt/homebrew/opt/openal-soft /usr/local/opt/openal-soft)
+	set(CMAKE_FIND_FRAMEWORK LAST)
+endif()
 find_package(OpenAL REQUIRED)
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")

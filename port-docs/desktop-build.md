@@ -11,20 +11,18 @@ default CMake configuration (`RAD_WIN32 + RAD_CONSOLE + RAD_SDL`,
 Dependencies (Homebrew): `cmake sdl2 libpng openal-soft ffmpeg`
 
 ```sh
-OPENALDIR=/opt/homebrew/opt/openal-soft cmake -S . -B build/desktop \
-    -DSRR2_BUILD_TESTS=OFF \
-    -DCMAKE_DISABLE_FIND_PACKAGE_SDL3=ON \
-    -DCMAKE_FIND_FRAMEWORK=LAST
+cmake -S . -B build/desktop -DSRR2_BUILD_TESTS=OFF
 cmake --build build/desktop -j8
 ```
 
 Notes:
 
-- SDL3 is disabled because the upstream SDL3 code path has API drift in
+- SDL2 is the default; SDL3 is opt-in via `-DSRR2_USE_SDL3=ON` because the
+  SDL3 code path has API drift in
   `libs/pure3d/pddi/gl/display_win32/gldisplay.cpp` (gamma ramp, renamed
   constants). Fixing that would allow SDL3.
-- `OPENALDIR` + `CMAKE_FIND_FRAMEWORK=LAST` steer CMake away from the
-  deprecated system OpenAL framework, which lacks `efx.h`.
+- On macOS, CMake automatically prefers Homebrew openal-soft over the
+  deprecated system OpenAL framework (which lacks `efx.h`).
 - The OpenGL PDDI backend requests a legacy compatibility context; macOS
   provides GL 2.1, which is deprecated but functional. If it proves
   problematic, `-DSRR2_P3D_PDDI=GLES2` via ANGLE is the fallback.
