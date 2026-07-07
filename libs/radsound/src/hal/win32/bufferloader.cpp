@@ -6,8 +6,7 @@
 #include "pch.hpp"
 #include "bufferloader.hpp"
 
-template<> radSoundBufferLoaderWin * radLinkedClass< radSoundBufferLoaderWin >::s_pLinkedClassHead = NULL;
-template<> radSoundBufferLoaderWin * radLinkedClass< radSoundBufferLoaderWin >::s_pLinkedClassTail = NULL;
+// Removed: radLinkedClass statics are defined generically in radlinkedclass.hpp.
 
 //=========================================================================
 // radSoundBufferLoaderWin::radSoundBufferLoaderWin

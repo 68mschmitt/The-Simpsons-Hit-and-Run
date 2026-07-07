@@ -15,8 +15,7 @@
 // Static Initialization
 //============================================================================
 
-template<> radSoundHalVoiceWin * radLinkedClass<radSoundHalVoiceWin>::s_pLinkedClassHead = NULL;
-template<> radSoundHalVoiceWin * radLinkedClass<radSoundHalVoiceWin>::s_pLinkedClassTail = NULL;
+// Removed: radLinkedClass statics are defined generically in radlinkedclass.hpp.
 
 //========================================================================
 // radSoundHalVoiceWin::radSoundHalVoiceWin

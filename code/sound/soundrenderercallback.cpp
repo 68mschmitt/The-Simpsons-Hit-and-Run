@@ -29,8 +29,7 @@
 //
 // Initialially the list is empty
 //
-template<> SoundRenderingPlayerCallback* radLinkedClass< SoundRenderingPlayerCallback >::s_pLinkedClassHead = NULL;
-template<> SoundRenderingPlayerCallback* radLinkedClass< SoundRenderingPlayerCallback >::s_pLinkedClassTail = NULL;
+// Removed: radLinkedClass statics are defined generically in radlinkedclass.hpp.
 
 //******************************************************************************
 //

@@ -31,8 +31,7 @@
 //
 // Initialially the list is empty
 //
-template<> positionalSoundSettings* radLinkedClass< positionalSoundSettings >::s_pLinkedClassHead = NULL;
-template<> positionalSoundSettings* radLinkedClass< positionalSoundSettings >::s_pLinkedClassTail = NULL;
+// Removed: radLinkedClass statics are defined generically in radlinkedclass.hpp.
 
 //*****************************************************************************
 //

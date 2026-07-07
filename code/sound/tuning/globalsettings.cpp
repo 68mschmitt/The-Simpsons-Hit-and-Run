@@ -34,8 +34,7 @@ using namespace Sound;
 //
 // Initialially the list is empty
 //
-template<> globalSettings* radLinkedClass< globalSettings >::s_pLinkedClassHead = NULL;
-template<> globalSettings* radLinkedClass< globalSettings >::s_pLinkedClassTail = NULL;
+// Removed: radLinkedClass statics are defined generically in radlinkedclass.hpp.
 
 //******************************************************************************
 //

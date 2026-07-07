@@ -42,10 +42,8 @@
 //
 // Initialially the player list is empty
 //
-template<> Sound::daSoundPlayerBase* radLinkedClass< Sound::daSoundPlayerBase >::s_pLinkedClassHead = NULL;
-template<> Sound::daSoundPlayerBase* radLinkedClass< Sound::daSoundPlayerBase >::s_pLinkedClassTail = NULL;
-template<> Sound::daSoundClipStreamPlayer* radLinkedClass< Sound::daSoundClipStreamPlayer >::s_pLinkedClassHead = NULL;
-template<> Sound::daSoundClipStreamPlayer* radLinkedClass< Sound::daSoundClipStreamPlayer >::s_pLinkedClassTail = NULL;
+// Removed: radLinkedClass statics are defined generically in radlinkedclass.hpp.
+// Removed: radLinkedClass statics are defined generically in radlinkedclass.hpp.
 
 //=============================================================================
 // Namespace

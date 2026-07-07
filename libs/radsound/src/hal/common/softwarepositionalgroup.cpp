@@ -24,8 +24,7 @@
 // Static member definitions
 //========================================================================
 
-template<> radSoundHalPositionalGroup * radLinkedClass< radSoundHalPositionalGroup >::s_pLinkedClassHead = NULL;
-template<> radSoundHalPositionalGroup * radLinkedClass< radSoundHalPositionalGroup >::s_pLinkedClassTail = NULL;
+// Removed: radLinkedClass statics are defined generically in radlinkedclass.hpp.
 //========================================================================
 // ::radSoundhalPositionalGroupCreate
 //========================================================================

@@ -20,8 +20,7 @@ const unsigned int RADSOUNDHAL_BUFFER_CHANNEL_ALIGNMENT = 1;
 // Static Initialization
 //============================================================================
 
-template<> radSoundHalBufferWin * radLinkedClass<radSoundHalBufferWin>::s_pLinkedClassHead = NULL;
-template<> radSoundHalBufferWin * radLinkedClass<radSoundHalBufferWin>::s_pLinkedClassTail = NULL;
+// Removed: radLinkedClass statics are defined generically in radlinkedclass.hpp.
 
 //========================================================================
 // radSoundHalBufferWin::~radSoundHalBufferWin

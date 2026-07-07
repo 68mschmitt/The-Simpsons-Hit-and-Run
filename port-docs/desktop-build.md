@@ -40,8 +40,8 @@ cmake -S . -B build/desktop -DSRR2_BUILD_TESTS=OFF
 cmake --build build/desktop -j$(nproc)
 ```
 
-(Not yet CI-verified; the tree targets GCC on Switch/Vita so it is expected
-to be close.)
+Verified 2026-07-07 on Ubuntu 24.04 (GCC, x86-64, Docker) with the package
+list above.
 
 ## Running
 
