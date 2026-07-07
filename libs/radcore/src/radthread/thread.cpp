@@ -36,6 +36,25 @@
 // Local Definitions
 //=============================================================================
 
+//
+// Thread identity. On desktop POSIX platforms the main radThread object is
+// constructed before main() (the memory system bootstraps from the first
+// global operator new, which can fire from shared-library static
+// initializers), so identity must not go through SDL there.
+//
+#if defined( __APPLE__ ) || defined( __linux__ )
+#include <pthread.h>
+#endif
+
+static inline unsigned long radThreadCurrentId( void )
+{
+#if defined( __APPLE__ ) || defined( __linux__ )
+    return (unsigned long) (uintptr_t) pthread_self( );
+#else
+    return (unsigned long) SDL_ThreadID( );
+#endif
+}
+
 //=============================================================================
 // Statics
 //=============================================================================
@@ -483,7 +502,7 @@ radThread::radThread( void )
 {
     radMemoryMonitorIdentifyAllocation( this, g_nameFTech, "radThread" );
 
-    m_ThreadId = SDL_ThreadID();
+    m_ThreadId = radThreadCurrentId();
 
     //
     // Add ourself as the first entry in the thread table. No protection
@@ -492,10 +511,12 @@ radThread::radThread( void )
     s_ThreadTable[ 0 ] = this;  
 
     //
-    // Alter the thread proirity to ensure that things are running at the 
-    // default proirity.
+    // Record the default priority. The OS already runs the main thread at
+    // normal priority, and this constructor can execute before main() (the
+    // memory system bootstraps from the first global operator new), where
+    // calling into SDL is not yet safe.
     //
-    SetPriority( IRadThread::PriorityNormal );
+    m_Priority = IRadThread::PriorityNormal;
 
     //
     // Set the default ThreadLocalStorage values to NULL
@@ -721,7 +742,7 @@ int radThread::InternalThreadEntry( void* param )
     // from callers function.   
     //
     radThread* pThread = (radThread*) param;
-    pThread->m_ThreadId = SDL_ThreadID();
+    pThread->m_ThreadId = radThreadCurrentId();
 
     // In SDL, thread priority can only be set on the current thread, so we do it here.
     pThread->SetPriority(pThread->m_Priority);
@@ -893,7 +914,7 @@ unsigned int radThread::WaitForTermination( void )
 
 bool radThread::IsActive( void )
 {
-    return m_ThreadId == SDL_ThreadID();
+    return m_ThreadId == radThreadCurrentId();
 }
 
 //=============================================================================

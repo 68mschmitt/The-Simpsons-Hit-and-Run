@@ -47,7 +47,21 @@ static bool g_SystemInitialized = false;
 //
 // Need an exclusion object for each of the various platforms.
 //
-#if SDL_MAJOR_VERSION < 3
+// On desktop POSIX platforms this must not be an SDL mutex: the game
+// overrides the global operator new, and shared-library static
+// initializers (e.g. FFmpeg's libx265) can allocate before SDL's own
+// dynamic-API bootstrap is usable, which crashes. A statically
+// initialized recursive pthread mutex is safe at any point in startup.
+//
+#if defined( __APPLE__ ) || defined( __linux__ )
+#define RAD_THREAD_PTHREAD_LOCK
+#include <pthread.h>
+#ifdef __linux__
+static pthread_mutex_t g_ExclusionObject = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
+#else
+static pthread_mutex_t g_ExclusionObject = PTHREAD_RECURSIVE_MUTEX_INITIALIZER;
+#endif
+#elif SDL_MAJOR_VERSION < 3
 static SDL_mutex* g_ExclusionObject = nullptr;
 #else
 static SDL_Mutex* g_ExclusionObject = nullptr;
@@ -75,10 +89,12 @@ void radThreadInitialize( unsigned int milliseconds )
     rAssertMsg( !g_SystemInitialized, "radThread system already initialized\n");
 
     //
-    // To manage our threading objects we in a thread safe manner, we need 
+    // To manage our threading objects we in a thread safe manner, we need
     // OS exculision objects for our own use. Create them here.
     //
+#ifndef RAD_THREAD_PTHREAD_LOCK
     g_ExclusionObject = SDL_CreateMutex();
+#endif
 
     g_SystemInitialized = true;
 
@@ -111,10 +127,12 @@ void radThreadTerminate( void )
     radThread::Terminate( );
 
     //
-    // Free up the exclusion object using the appropriate platform specific 
+    // Free up the exclusion object using the appropriate platform specific
     // function.
     //
+#ifndef RAD_THREAD_PTHREAD_LOCK
     SDL_DestroyMutex(g_ExclusionObject);
+#endif
 
     g_SystemInitialized = false;
 }
@@ -138,7 +156,11 @@ void radThreadInternalLock( void )
     //
     // Just perform the OS specific implementation.
     //
+#ifdef RAD_THREAD_PTHREAD_LOCK
+    pthread_mutex_lock( &g_ExclusionObject );
+#else
     SDL_LockMutex(g_ExclusionObject);
+#endif
 }
 
 //=============================================================================
@@ -160,5 +182,9 @@ void radThreadInternalUnlock( void )
     //
     // Just perform the OS specific implementation.
     //
+#ifdef RAD_THREAD_PTHREAD_LOCK
+    pthread_mutex_unlock( &g_ExclusionObject );
+#else
     SDL_UnlockMutex(g_ExclusionObject);
+#endif
 }
