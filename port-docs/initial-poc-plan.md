@@ -30,7 +30,7 @@ Shutdown complete
 
 ## Implementation Status
 
-Status as of 2026-07-01: initial scaffold, first original-code vertical slice, and an optional SDL2 host shell implemented and validated.
+Status as of 2026-07-07: initial scaffold, first original-code vertical slice, an optional SDL2 host shell, and the faithful loading/filesystem shim implemented and validated (including on macOS).
 
 Build/run commands:
 
@@ -55,6 +55,9 @@ Current behavior:
 - Runs a deterministic fixed-frame loop using `LinuxPocConfig::FixedElapsedMilliseconds`, or an explicit `--until-quit` loop.
 - When SDL2 is available and not disabled, creates a host window, clears/presents one frame per game-loop tick, polls SDL window/keyboard/controller events, routes keyboard and controller button state into the input shim, and exits on window close or Escape.
 - Logs `CONTEXT_ENTRY -> CONTEXT_BOOTUP`, each fixed frame, `CONTEXT_BOOTUP -> CONTEXT_EXIT`, and clean shutdown.
+- Records every asset path requested through the loading shim, normalizing legacy Windows-style paths (backslashes, drive letters, duplicate separators).
+- With `--data-root PATH`, probes each request against an on-disk data tree using per-component directory-listing comparison, so case mismatches are diagnosed even on case-insensitive filesystems (macOS APFS); reports `found`, `case-mismatch` (with the actual on-disk path), or `missing`.
+- With `--asset-manifest PATH`, writes a TSV manifest of all unique requests (status, request count, source, section, resolved path) at shutdown, plus a one-line summary either way.
 
 Important limitation: the current target still does not compile or drive the original heavyweight bootup/frontend/gameplay contexts, real `RenderFlow`, real `SoundManager`, real `InputManager`, or real `LoadingManager`. Those are represented by PoC shims so the original top-level game and flow lifecycles can run without assets or proprietary middleware. The SDL2 shell only clears/presents a host window; it does not render game content.
 
@@ -323,4 +326,6 @@ The SDL2-backed platform shell now exists at a minimal level:
 - Clears/presents the host window once per frame.
 - Keeps the game update loop on the deterministic PoC timestep.
 
-Next recommended increment: make the loading/filesystem shim more faithful by normalizing paths, recording all asset requests, probing an optional data root, and reporting missing files with case-sensitivity diagnostics. Do not load real assets until the SDL shell and no-op runtime are stable.
+The loading/filesystem shim increment is complete: paths are normalized, all asset requests are recorded to an optional manifest, an optional `--data-root` is probed, and missing files are reported with case-sensitivity diagnostics.
+
+Next recommended increment: begin compiling the original heavyweight contexts (starting with `BootupContext`) and their direct dependencies into the PoC in place of the stand-in contexts, expanding the middleware stubs only as compile errors demand. This is the first step toward driving the real game flow, and the recorded asset manifest will show which real assets the original contexts request.

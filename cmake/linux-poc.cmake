@@ -10,6 +10,7 @@ add_executable(srr2-linux-poc
     game/code/contexts/context.cpp
     game/code/contexts/linux_poc_contexts.cpp
     game/code/events/eventlistener.cpp
+    game/code/port/linux_poc_filesystem.cpp
     game/code/port/linux_poc_inputmanager.cpp
     game/code/port/linux_poc_loadingmanager.cpp
     game/code/port/linux_poc_memory.cpp

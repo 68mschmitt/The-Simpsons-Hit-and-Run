@@ -4,6 +4,8 @@
 
 #include <loading/loadingmanager.h>
 
+#include <port/linux_poc_filesystem.h>
+
 #include <raddebug.hpp>
 
 LoadingManager* LoadingManager::spInstance = nullptr;
@@ -30,6 +32,7 @@ CementFileHandle LoadingManager::RegisterCementLibrary(const char* filename)
 {
     rReleasePrintf("LoadingManager ignoring cement library registration: %s\n",
                    filename != nullptr ? filename : "<null>");
+    LinuxPocFileSystem::RecordRequest(filename, "cement", nullptr);
     return 0;
 }
 
@@ -61,6 +64,7 @@ void LoadingManager::AddRequest(FileHandlerEnum handlerType,
     rReleasePrintf("LoadingManager fake request: file=%s section=%s\n",
                    filename != nullptr ? filename : "<null>",
                    sectionName != nullptr ? sectionName : "<none>");
+    LinuxPocFileSystem::RecordRequest(filename, "async", sectionName);
     if(pCallback != nullptr)
     {
         pCallback->OnProcessRequestsComplete(pUserData);
@@ -77,6 +81,7 @@ void LoadingManager::LoadSync(FileHandlerEnum handlerType,
     rReleasePrintf("LoadingManager fake sync load: file=%s section=%s\n",
                    filename != nullptr ? filename : "<null>",
                    sectionName != nullptr ? sectionName : "<none>");
+    LinuxPocFileSystem::RecordRequest(filename, "sync", sectionName);
 }
 
 bool LoadingManager::IsLoading()

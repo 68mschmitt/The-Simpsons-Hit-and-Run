@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 
 #include <raddebug.hpp>
 #include <radtime.hpp>
@@ -14,6 +15,7 @@
 #include <main/linuxplatform.h>
 #include <main/singletons_linux_poc.h>
 #include <port/linux_poc_config.h>
+#include <port/linux_poc_filesystem.h>
 
 // CommandLineOptions references these legacy globals for some debug switches.
 bool g_AllowDebugOutput = true;
@@ -28,6 +30,8 @@ namespace
         LinuxPocConfig::HostWindowMode hostWindowMode = LinuxPocConfig::HostWindowMode::Auto;
         unsigned int windowWidth = LinuxPocConfig::DefaultWindowWidth;
         unsigned int windowHeight = LinuxPocConfig::DefaultWindowHeight;
+        std::string dataRoot;
+        std::string assetManifestPath;
         bool showHelp = false;
     };
 
@@ -98,6 +102,8 @@ namespace
         rReleasePrintf("  --window-size WxH   Set SDL window size. Default: %ux%u\n",
                        LinuxPocConfig::DefaultWindowWidth,
                        LinuxPocConfig::DefaultWindowHeight);
+        rReleasePrintf("  --data-root PATH    Probe asset requests against a game data tree (a copy of game/cd).\n");
+        rReleasePrintf("  --asset-manifest PATH  Write the recorded asset request manifest to PATH at shutdown.\n");
         rReleasePrintf("  --help              Show this help and exit.\n");
         rReleasePrintf("\n");
         rReleasePrintf("Other options are passed to CommandLineOptions::HandleOption after leading '-' characters are stripped.\n");
@@ -196,6 +202,50 @@ namespace
                 continue;
             }
 
+            if(std::strcmp(argument, "--data-root") == 0 || std::strcmp(argument, "-data-root") == 0)
+            {
+                if(i + 1 < argc && argv[i + 1] != NULL && argv[i + 1][0] != '\0')
+                {
+                    options.dataRoot = argv[i + 1];
+                    ++i;
+                }
+                else
+                {
+                    rReleasePrintf("Missing value for --data-root; data root probing disabled\n");
+                }
+                continue;
+            }
+
+            const char dataRootPrefix[] = "--data-root=";
+            const std::size_t dataRootPrefixLength = sizeof(dataRootPrefix) - 1;
+            if(std::strncmp(argument, dataRootPrefix, dataRootPrefixLength) == 0)
+            {
+                options.dataRoot = argument + dataRootPrefixLength;
+                continue;
+            }
+
+            if(std::strcmp(argument, "--asset-manifest") == 0 || std::strcmp(argument, "-asset-manifest") == 0)
+            {
+                if(i + 1 < argc && argv[i + 1] != NULL && argv[i + 1][0] != '\0')
+                {
+                    options.assetManifestPath = argv[i + 1];
+                    ++i;
+                }
+                else
+                {
+                    rReleasePrintf("Missing value for --asset-manifest; manifest file disabled\n");
+                }
+                continue;
+            }
+
+            const char assetManifestPrefix[] = "--asset-manifest=";
+            const std::size_t assetManifestPrefixLength = sizeof(assetManifestPrefix) - 1;
+            if(std::strncmp(argument, assetManifestPrefix, assetManifestPrefixLength) == 0)
+            {
+                options.assetManifestPath = argument + assetManifestPrefixLength;
+                continue;
+            }
+
             const char windowSizePrefix[] = "--window-size=";
             const std::size_t windowSizePrefixLength = sizeof(windowSizePrefix) - 1;
             if(std::strncmp(argument, windowSizePrefix, windowSizePrefixLength) == 0)
@@ -237,6 +287,14 @@ int main(int argc, char** argv)
     LinuxPocConfig::RuntimeHostWindowMode = options.hostWindowMode;
     LinuxPocConfig::RuntimeWindowWidth = options.windowWidth;
     LinuxPocConfig::RuntimeWindowHeight = options.windowHeight;
+    LinuxPocConfig::RuntimeDataRoot = options.dataRoot;
+    LinuxPocConfig::RuntimeAssetManifestPath = options.assetManifestPath;
+
+    if(!options.dataRoot.empty())
+    {
+        rReleasePrintf("LinuxPocFileSystem probing asset requests against data root: %s\n",
+                       options.dataRoot.c_str());
+    }
 
     LinuxPlatform::InitializeFoundation();
     CreateSingletonsLinuxPoc();
@@ -254,6 +312,8 @@ int main(int argc, char** argv)
 
     platform->ShutdownPlatform();
     LinuxPlatform::DestroyInstance();
+
+    LinuxPocFileSystem::WriteManifest();
 
     rReleasePrintf("Shutdown complete\n");
     return 0;
