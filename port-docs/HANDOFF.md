@@ -42,7 +42,7 @@ verification is not finished.
   radscript, radcontent, choreo, poser, sim, scrooby (GUI).
 - `CMakeLists.txt` — top-level; `code/CMakeLists.txt` builds the `SRR2` exe.
 - `port-docs/` — all porting docs. `tools/linux-runtime/` — headless Linux
-  run harness. `.github/workflows/build.yml` — CI for both OSes.
+  run harness. `ci/github-build.yml` — CI workflow for both OSes (parked; see `ci/README.md` — activating it in `.github/workflows/` needs a push token with the `workflow` scope).
 - Upstream provenance: vendored from ZenoArrows/The-Simpsons-Hit-and-Run @
   `07951a8d210c56eccbfd25e7756eedcbe7c8b850` (Switch/Vita port of the same
   leaked source; full game playable there). Upstream README:
@@ -173,8 +173,7 @@ on macOS.
 4. Full retail assets from the user → all levels, frontend menu
    (`frontend.p3d` exists there), save data, full mission sweep on both OSes.
 5. Quality: SDL3 path fix (optional), GL 2.1 deprecation on macOS (works
-   today; ANGLE/GLES2 via `-DSRR2_P3D_PDDI=GLES2` is the fallback), CI is in
-   place, packaging per `port-docs/high-level/porting-strategy.md` Phase 8.
+   today; ANGLE/GLES2 via `-DSRR2_P3D_PDDI=GLES2` is the fallback), CI workflow is written but parked (see `ci/README.md`), packaging per `port-docs/high-level/porting-strategy.md` Phase 8.
 
 ## Working Agreements (important)
 
