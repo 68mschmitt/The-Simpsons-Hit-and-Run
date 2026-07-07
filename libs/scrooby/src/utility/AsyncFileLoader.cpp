@@ -19,7 +19,11 @@
 #include <string.h>
 
 #ifdef P3D_PS2
-    #include <malloc.h>
+    #ifdef __APPLE__
+#include <stdlib.h>
+#else
+#include <malloc.h>
+#endif
 #endif
 
 // needed to get access to the getcwd command

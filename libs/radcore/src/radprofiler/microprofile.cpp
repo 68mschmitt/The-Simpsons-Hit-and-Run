@@ -32,7 +32,11 @@ void MicroProfileGpuSetCallbacks(MicroProfileGpuInsertTimeStamp_CB InsertTimeSta
 #if !defined(WIN32_LEAN_AND_MEAN)
 #define WIN32_LEAN_AND_MEAN
 #endif
+#ifdef __APPLE__
+#include <stdlib.h>
+#else
 #include <malloc.h>
+#endif
 #endif
 
 #include <atomic>

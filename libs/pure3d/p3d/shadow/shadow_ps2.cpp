@@ -23,7 +23,11 @@
 #include <eeregs.h>
 
 #ifdef PS2MW
+#ifdef __APPLE__
+#include <stdlib.h>
+#else
 #include <malloc.h>
+#endif
 #endif
 
 tShader* tShadowGeneratorImpl::s_VolumeShader = NULL;

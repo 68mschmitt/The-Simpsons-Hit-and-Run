@@ -14,6 +14,8 @@
 #ifndef ACTORANIMATIONWASP_H
 #define ACTORANIMATIONWASP_H
 
+#include <cstddef>
+
 
 //===========================================================================
 // Nested Includes

@@ -13,7 +13,11 @@
 // System Includes
 //========================================      
 #ifdef RAD_PS2      
+#ifdef __APPLE__
+#include <stdlib.h>
+#else
 #include <malloc.h>
+#endif
 #endif
 
 // Foundation Tech

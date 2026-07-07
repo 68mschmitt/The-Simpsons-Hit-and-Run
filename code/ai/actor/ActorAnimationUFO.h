@@ -13,6 +13,8 @@
 #ifndef ACTORANIMATIONUFO_H
 #define ACTORANIMATIONUFO_H
 
+#include <cstddef>
+
 
 //===========================================================================
 // Nested Includes

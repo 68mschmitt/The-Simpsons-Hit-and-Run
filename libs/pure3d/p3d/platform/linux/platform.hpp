@@ -9,7 +9,11 @@
 #include <p3d/platform/linux/plat_types.hpp>
 #include <pddi/pddi.hpp>
 
+#ifdef __APPLE__
+#include <stdlib.h>
+#else
 #include <malloc.h>
+#endif
 #include <pthread.h>
 
 static const int P3D_MAX_CONTEXTS = 4;

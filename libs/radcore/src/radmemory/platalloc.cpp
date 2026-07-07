@@ -10,7 +10,11 @@
 
 #if defined RAD_PS2
 
-    #include <malloc.h>
+    #ifdef __APPLE__
+#include <stdlib.h>
+#else
+#include <malloc.h>
+#endif
 
 #elif defined WIN32 || defined RAD_XBOX
     

@@ -13,6 +13,8 @@
 #ifndef ACTORANIMATION_H
 #define ACTORANIMATION_H
 
+#include <cstddef>
+
 #include <radmath/matrix.hpp>
 
 //===========================================================================
