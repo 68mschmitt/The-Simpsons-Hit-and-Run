@@ -23,6 +23,8 @@
 
 #ifdef LINUX_POC
 #include <contexts/context.h>
+#include <contexts/entrycontext.h>
+#include <contexts/bootupcontext.h>
 #include <contexts/linux_poc_contexts.h>
 #else
 #include <contexts/entrycontext.h>
@@ -345,7 +347,11 @@ GameFlow::GameFlow() :
     // Create the context controllers.
     //
 #ifdef LINUX_POC
-    for( i = CONTEXT_ENTRY; i < NUM_CONTEXTS; ++i )
+    // Real contexts are swapped in one at a time as their dependencies
+    // become portable; the rest use the PoC stand-in.
+    mpContexts[CONTEXT_ENTRY] = GetEntryContext();
+    mpContexts[CONTEXT_BOOTUP] = GetBootupContext();
+    for( i = CONTEXT_FRONTEND; i < NUM_CONTEXTS; ++i )
     {
         mpContexts[i] = CreateLinuxPocContext( static_cast<ContextEnum>( i ) );
     }

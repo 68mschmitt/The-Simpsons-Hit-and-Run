@@ -30,7 +30,7 @@ Shutdown complete
 
 ## Implementation Status
 
-Status as of 2026-07-07: initial scaffold, first original-code vertical slice, an optional SDL2 host shell, and the faithful loading/filesystem shim implemented and validated (including on macOS).
+Status as of 2026-07-07: initial scaffold, first original-code vertical slice, an optional SDL2 host shell, the faithful loading/filesystem shim, and the real `EntryContext`/`BootupContext` implemented and validated (including on macOS).
 
 Build/run commands:
 
@@ -328,4 +328,6 @@ The SDL2-backed platform shell now exists at a minimal level:
 
 The loading/filesystem shim increment is complete: paths are normalized, all asset requests are recorded to an optional manifest, an optional `--data-root` is probed, and missing files are reported with case-sensitivity diagnostics.
 
-Next recommended increment: begin compiling the original heavyweight contexts (starting with `BootupContext`) and their direct dependencies into the PoC in place of the stand-in contexts, expanding the middleware stubs only as compile errors demand. This is the first step toward driving the real game flow, and the recorded asset manifest will show which real assets the original contexts request.
+The real-context increment has begun: `EntryContext` and `BootupContext` now compile unmodified and drive their contexts (the GameFlow `LINUX_POC` branch swaps real contexts in one at a time). `BootupContext` runs its genuine boot flow — manager initialization, the six global asset requests, the license-screen timer, and `GUI_MSG_QUIT_BOOTUP` → `StartMovies()` → `CONTEXT_FRONTEND` — against ~20 minimal manager stubs in `port/stubs/` plus `port/linux_poc_bootup_stubs.cpp`.
+
+Next recommended increment: see `port-docs/high-level/pure3d-runtime-options.md` — evaluate adopting the restored Pure3D/RAD middleware tree (with working OpenGL/GLES PDDI backends) from the console-port lineage instead of deepening the stub set, since that is the proven path to real rendering, audio, and full playability.

@@ -23,4 +23,27 @@ struct pddiColour
     }
 };
 
+// Minimal ref-counted shader stand-in.  BootupContext only needs AddRef/Release
+// with delete-on-zero semantics for its shared "simple" shader.
+class pddiShader
+{
+public:
+    pddiShader() : mRefCount(0) {}
+    virtual ~pddiShader() {}
+
+    void AddRef() { ++mRefCount; }
+    void Release()
+    {
+        if(--mRefCount <= 0)
+        {
+            delete this;
+        }
+    }
+
+    int GetRefCount() const { return mRefCount; }
+
+private:
+    int mRefCount;
+};
+
 #endif // PDDI_PDDI_HPP
