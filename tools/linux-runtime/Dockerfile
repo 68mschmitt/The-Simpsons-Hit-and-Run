@@ -13,7 +13,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     cmake g++ make pkg-config \
     libsdl2-dev libpng-dev libopenal-dev \
     libavformat-dev libavcodec-dev libavutil-dev libswresample-dev libswscale-dev \
-    xvfb mesa-utils libgl1-mesa-dri \
+    xvfb mesa-utils libgl1-mesa-dri x11-apps \
     && rm -rf /var/lib/apt/lists/*
 
 COPY run-game.sh /usr/local/bin/run-game.sh

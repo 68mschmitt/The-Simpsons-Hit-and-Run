@@ -2,7 +2,11 @@
 # Build SRR2 from /src, then run it under Xvfb with Mesa software GL from the
 # asset tree at /assets. Environment overrides:
 #   RUN_SECONDS   how long to let the game run before stopping (default 30)
+#   GAME_ARGS     command-line arguments for the game (e.g. "skipfe")
 #   SKIP_BUILD=1  reuse /out/build/code/SRR2 instead of rebuilding
+#
+# A screenshot of the virtual display is written to /out/screenshot.xwd
+# shortly before the timeout (view with xwud, GIMP, or `magick x:...`).
 set -e
 
 if [ "${SKIP_BUILD}" != "1" ]; then
@@ -11,7 +15,9 @@ if [ "${SKIP_BUILD}" != "1" ]; then
 fi
 
 export LIBGL_ALWAYS_SOFTWARE=1
-export SDL_AUDIODRIVER=dummy
+export ALSOFT_DRIVERS=null
+
+RUN_SECONDS="${RUN_SECONDS:-30}"
 
 cd /assets
 Xvfb :99 -screen 0 1024x768x24 &
@@ -19,7 +25,13 @@ XVFB_PID=$!
 export DISPLAY=:99
 sleep 1
 
-timeout "${RUN_SECONDS:-30}" /out/build/code/SRR2 2>&1 | tee /out/game.log
+(
+    sleep $(( RUN_SECONDS * 3 / 4 ))
+    xwd -root -display :99 -silent > /out/screenshot.xwd 2>/dev/null || true
+) &
+
+# shellcheck disable=SC2086
+timeout "$RUN_SECONDS" /out/build/code/SRR2 ${GAME_ARGS} 2>&1 | tee /out/game.log
 STATUS=${PIPESTATUS[0]}
 
 kill $XVFB_PID 2>/dev/null || true
