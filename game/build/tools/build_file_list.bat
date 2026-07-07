@@ -1,1 +1,0 @@
-perl.exe %BUILDART%..\tools\build_file_list.pl %1

@@ -1,3 +1,0 @@
-PRINT Applying SKIDMARKS template to INPUT
-COMMAND p3ddel -k 11000 -k 19000 -o OUTPUT INPUT
-COMMAND p3dimage --ntsc_fix -r -o OUTPUT OUTPUT

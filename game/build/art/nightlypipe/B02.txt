@@ -1,2 +1,0 @@
-B02.p3d
-B02data.p3d
