@@ -201,7 +201,9 @@ void radMoviePlayer::Load( const char * pVideoFileName, unsigned int audioTrackI
     AV_CHK( avformat_find_stream_info( m_pFormatCtx, NULL ) );
 
     const AVCodec* pVideoCodec = NULL;
-    m_VideoTrackIndex = av_find_best_stream( m_pFormatCtx, AVMEDIA_TYPE_VIDEO, -1, -1, &pVideoCodec, 0 );
+    int videoTrackIndex = av_find_best_stream( m_pFormatCtx, AVMEDIA_TYPE_VIDEO, -1, -1, &pVideoCodec, 0 );
+    AV_CHK( videoTrackIndex );
+    m_VideoTrackIndex = videoTrackIndex;
     AVCodecParameters* pVideoParams = m_pFormatCtx->streams[m_VideoTrackIndex]->codecpar;
     m_pVideoCtx = avcodec_alloc_context3( pVideoCodec );
     AV_CHK( avcodec_parameters_to_context( m_pVideoCtx, pVideoParams ) );
@@ -219,30 +221,53 @@ void radMoviePlayer::Load( const char * pVideoFileName, unsigned int audioTrackI
     );
 #endif
 
+    m_AudioTrackIndex = radMovie_NoAudioTrack;
     if( audioTrackIndex != radMovie_NoAudioTrack )
     {
-        const AVCodec* pAudioCodec = NULL;
-        m_AudioTrackIndex = av_find_best_stream( m_pFormatCtx, AVMEDIA_TYPE_AUDIO, audioTrackIndex + 1, -1, &pAudioCodec, 0 );
-        AVCodecParameters* pAudioParams = m_pFormatCtx->streams[m_AudioTrackIndex]->codecpar;
-        m_pAudioCtx = avcodec_alloc_context3( pAudioCodec );
-        AV_CHK( avcodec_parameters_to_context( m_pAudioCtx, pAudioParams ) );
-        AV_CHK( avcodec_open2( m_pAudioCtx, pAudioCodec, NULL ) );
+        unsigned int audioTrackCount = 0;
+        for( unsigned int i = 0; i < m_pFormatCtx->nb_streams; i++ )
+        {
+            AVCodecParameters* pParams = m_pFormatCtx->streams[i]->codecpar;
+            if( pParams->codec_type == AVMEDIA_TYPE_AUDIO )
+            {
+                if( audioTrackCount == audioTrackIndex )
+                {
+                    m_AudioTrackIndex = i;
+                    break;
+                }
 
-        AVChannelLayout layout = { AV_CHANNEL_ORDER_NATIVE, 2, AV_CH_LAYOUT_STEREO };
-        AV_CHK( swr_alloc_set_opts2( &m_pSwrCtx,
-            &layout,
-            AV_SAMPLE_FMT_S16,
-            pAudioParams->sample_rate,
-            &pAudioParams->ch_layout,
-            (AVSampleFormat)pAudioParams->format,
-            pAudioParams->sample_rate,
-            0,
-            NULL ) );
-        swr_init( m_pSwrCtx );
-    }
-    else
-    {
-        m_AudioTrackIndex = 0;
+                audioTrackCount++;
+            }
+        }
+
+        if( m_AudioTrackIndex != radMovie_NoAudioTrack )
+        {
+            AVCodecParameters* pAudioParams = m_pFormatCtx->streams[m_AudioTrackIndex]->codecpar;
+            const AVCodec* pAudioCodec = avcodec_find_decoder( pAudioParams->codec_id );
+
+            if( pAudioCodec != NULL )
+            {
+                m_pAudioCtx = avcodec_alloc_context3( pAudioCodec );
+                AV_CHK( avcodec_parameters_to_context( m_pAudioCtx, pAudioParams ) );
+                AV_CHK( avcodec_open2( m_pAudioCtx, pAudioCodec, NULL ) );
+
+                AVChannelLayout layout = { AV_CHANNEL_ORDER_NATIVE, 2, AV_CH_LAYOUT_STEREO };
+                AV_CHK( swr_alloc_set_opts2( &m_pSwrCtx,
+                    &layout,
+                    AV_SAMPLE_FMT_S16,
+                    pAudioParams->sample_rate,
+                    &pAudioParams->ch_layout,
+                    (AVSampleFormat)pAudioParams->format,
+                    pAudioParams->sample_rate,
+                    0,
+                    NULL ) );
+                swr_init( m_pSwrCtx );
+            }
+            else
+            {
+                m_AudioTrackIndex = radMovie_NoAudioTrack;
+            }
+        }
     }
 
     m_pPacket = av_packet_alloc();
@@ -501,7 +526,7 @@ void radMoviePlayer::Service( void )
                                 &pDest, &dest.m_DestPitch ) >= 0 )
 #endif
                             {
-                                AVRational rational = m_pFormatCtx->streams[0]->time_base;
+                                AVRational rational = m_pFormatCtx->streams[m_VideoTrackIndex]->time_base;
                                 m_PresentationTime = (m_pVideoFrame->pts * rational.num * 1000) / rational.den;
                                 m_PresentationDuration = (m_pVideoFrame->duration * rational.num * 1000) / rational.den;
                                 m_VideoFrameState = VideoFrame_Locked;
@@ -511,7 +536,7 @@ void radMoviePlayer::Service( void )
                         }
                     }
                 }
-                else if( m_AudioTrackIndex > 0 && m_pPacket->stream_index == m_AudioTrackIndex )
+                else if( m_AudioTrackIndex != radMovie_NoAudioTrack && m_pPacket->stream_index == m_AudioTrackIndex )
                 {
                     AV_CHK( avcodec_send_packet( m_pAudioCtx, m_pPacket ) );
 

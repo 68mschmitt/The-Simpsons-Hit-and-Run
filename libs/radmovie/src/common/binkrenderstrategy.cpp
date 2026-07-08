@@ -28,6 +28,17 @@
 
 extern bool inLoop;
 
+static unsigned int NextPowerOfTwo( unsigned int value )
+{
+    unsigned int result = 1;
+    while( result < value )
+    {
+        result <<= 1;
+    }
+
+    return result;
+}
+
 //=============================================================================
 // radMovieRenderStrategyBink::radMovieRenderStrategyBink
 //=============================================================================
@@ -175,8 +186,13 @@ void radMovieRenderStrategyBink::ChangeParameters( unsigned int width, unsigned 
 
         // How many tiles will this movie require?
 
+        #ifdef RAD_MOVIEPLAYER_USE_BINK
         unsigned int horizontalTiles = ( width / RMV_TEXTURE_MAX_TEX_DIM ) + 1;
         unsigned int verticalTiles = ( height / RMV_TEXTURE_MAX_TEX_DIM ) + 1;
+        #else
+        unsigned int horizontalTiles = 1;
+        unsigned int verticalTiles = 1;
+        #endif
         m_NumTiles = horizontalTiles * verticalTiles;
         rAssert( m_NumTiles <= RMV_MAX_NUM_TILES );
 
@@ -205,7 +221,11 @@ void radMovieRenderStrategyBink::ChangeParameters( unsigned int width, unsigned 
                 #if RAD_VITAGL
                 bool wasTextureCreated = m_pTile[ tileIndex ].m_pTexture->Create( m_MovieWidth, m_MovieHeight, RMV_TEXTURE_BITDEPTH, 0, 0, PDDI_TEXTYPE_YUV );
                 #elif RAD_WIN32
+                #ifdef RAD_MOVIEPLAYER_USE_BINK
                 bool wasTextureCreated = m_pTile[ tileIndex ].m_pTexture->Create( RMV_TEXTURE_MAX_TEX_DIM, RMV_TEXTURE_MAX_TEX_DIM, RMV_TEXTURE_BITDEPTH, 8, 0, PDDI_TEXTYPE_RGB );
+                #else
+                bool wasTextureCreated = m_pTile[ tileIndex ].m_pTexture->Create( NextPowerOfTwo( m_MovieWidth ), NextPowerOfTwo( m_MovieHeight ), RMV_TEXTURE_BITDEPTH, 8, 0, PDDI_TEXTYPE_RGB, PDDI_USAGE_DYNAMIC );
+                #endif
                 #elif RAD_XBOX
                 bool wasTextureCreated = m_pTile[ tileIndex ].m_pTexture->Create( m_MovieWidth, m_MovieHeight, RMV_TEXTURE_BITDEPTH, 0, 0, PDDI_TEXTYPE_LINEAR );
                 #elif RAD_GAMECUBE
@@ -217,6 +237,10 @@ void radMovieRenderStrategyBink::ChangeParameters( unsigned int width, unsigned 
                 m_pTile[ tileIndex ].m_PosX = x * RMV_TEXTURE_MAX_TEX_DIM;
                 m_pTile[ tileIndex ].m_PosY = y * RMV_TEXTURE_MAX_TEX_DIM;
                 
+                #ifndef RAD_MOVIEPLAYER_USE_BINK
+                m_pTile[ tileIndex ].m_Width = m_MovieWidth;
+                m_pTile[ tileIndex ].m_Height = m_MovieHeight;
+                #else
                 if( ( x + 1 ) * RMV_TEXTURE_MAX_TEX_DIM > m_MovieWidth )
                 {
                     m_pTile[ tileIndex ].m_Width = m_MovieWidth % RMV_TEXTURE_MAX_TEX_DIM;
@@ -234,6 +258,7 @@ void radMovieRenderStrategyBink::ChangeParameters( unsigned int width, unsigned 
                 {
                     m_pTile[ tileIndex ].m_Height = RMV_TEXTURE_MAX_TEX_DIM;
                 }
+                #endif
 
                 tileIndex++;
             }
