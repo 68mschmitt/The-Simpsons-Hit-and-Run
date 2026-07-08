@@ -1,1 +1,0 @@
-%BUILDART%..\..\libs\pure3d\lib\perl\bin\perl.exe %BUILDART%..\tools\rename_anim.pl PTRN_Motion_Root 0x121000

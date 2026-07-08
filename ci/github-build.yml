@@ -1,0 +1,40 @@
+name: Desktop builds
+
+on:
+  push:
+    branches: [main, zenoarrows-base]
+  pull_request:
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ make libsdl2-dev libpng-dev libopenal-dev \
+            libavformat-dev libavcodec-dev libavutil-dev libswresample-dev libswscale-dev pkg-config
+      - name: Configure
+        run: cmake -S . -B build -DSRR2_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build -j"$(nproc)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SRR2-linux-x86_64
+          path: build/code/SRR2
+
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: brew install cmake sdl2 libpng openal-soft ffmpeg
+      - name: Configure
+        run: cmake -S . -B build -DSRR2_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build -j4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SRR2-macos-arm64
+          path: build/code/SRR2

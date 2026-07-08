@@ -1,1 +1,0 @@
-buildps2 r clean

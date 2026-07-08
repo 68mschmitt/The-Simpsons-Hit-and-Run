@@ -1,1 +1,0 @@
-perl nightlypipe.pl
