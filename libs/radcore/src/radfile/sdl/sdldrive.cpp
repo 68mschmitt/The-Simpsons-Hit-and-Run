@@ -104,7 +104,9 @@ radSdlDrive::radSdlDrive( const char* pdrivespec, radMemoryAllocator alloc )
         m_DriveName[radFileDrivenameMax] = '\0';
         m_DrivePath[radFileFilenameMax] = '\0';
         SDL_strupr( m_DriveName );
-        SDL_strlwr( m_DrivePath );
+        // Do not lowercase m_DrivePath. Linux filesystems are case-sensitive,
+        // so lowercasing the current working directory breaks installs whose
+        // parent path contains uppercase characters.
     }
 
     if(!m_DrivePath[0])

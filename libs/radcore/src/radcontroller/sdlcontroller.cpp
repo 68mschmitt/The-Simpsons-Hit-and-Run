@@ -141,6 +141,155 @@ static SDLInputPoint g_SDLPoints[] =
 
 static class radControllerSystemSDL* s_pTheSDLControllerSystem2 = NULL;
 static radMemoryAllocator g_ControllerSystemAllocator = RADMEMORY_ALLOC_DEFAULT;
+static int g_KeyboardMouseDeltaX = 0;
+static int g_KeyboardMouseDeltaY = 0;
+static Uint32 g_KeyboardMouseButtons = 0;
+
+static bool SdlKeyDown( const Uint8* keys, SDL_Scancode scancode )
+{
+    return keys != NULL && keys[ scancode ] != 0;
+}
+
+static float SdlDigitalAxis( bool negative, bool positive )
+{
+    if( negative && !positive )
+    {
+        return 0.0f;
+    }
+    if( positive && !negative )
+    {
+        return 1.0f;
+    }
+    return 0.5f;
+}
+
+static float SdlMouseAxis( int delta )
+{
+    float value = 0.5f + ( static_cast<float>( delta ) / 40.0f );
+    if( value < 0.0f )
+    {
+        value = 0.0f;
+    }
+    else if( value > 1.0f )
+    {
+        value = 1.0f;
+    }
+    return value;
+}
+
+static float SdlKeyboardControllerValue( const char* type, const char* name )
+{
+    const Uint8* keys = SDL_GetKeyboardState( NULL );
+
+    if( strcmp( type, g_Sdlipt[ 0 ] ) == 0 )
+    {
+        if( strcmp( name, "DPadUp" ) == 0 )
+        {
+            return ( SdlKeyDown( keys, SDL_SCANCODE_UP ) || SdlKeyDown( keys, SDL_SCANCODE_W ) ) ? 1.0f : 0.0f;
+        }
+        if( strcmp( name, "DPadDown" ) == 0 )
+        {
+            return ( SdlKeyDown( keys, SDL_SCANCODE_DOWN ) || SdlKeyDown( keys, SDL_SCANCODE_S ) ) ? 1.0f : 0.0f;
+        }
+        if( strcmp( name, "DPadLeft" ) == 0 )
+        {
+            return ( SdlKeyDown( keys, SDL_SCANCODE_LEFT ) || SdlKeyDown( keys, SDL_SCANCODE_A ) ) ? 1.0f : 0.0f;
+        }
+        if( strcmp( name, "DPadRight" ) == 0 )
+        {
+            return ( SdlKeyDown( keys, SDL_SCANCODE_RIGHT ) || SdlKeyDown( keys, SDL_SCANCODE_D ) ) ? 1.0f : 0.0f;
+        }
+        if( strcmp( name, "Start" ) == 0 )
+        {
+            return ( SdlKeyDown( keys, SDL_SCANCODE_P ) || SdlKeyDown( keys, SDL_SCANCODE_PAUSE ) ) ? 1.0f : 0.0f;
+        }
+        if( strcmp( name, "Back" ) == 0 )
+        {
+            return ( SdlKeyDown( keys, SDL_SCANCODE_R ) || SdlKeyDown( keys, SDL_SCANCODE_BACKSPACE ) ) ? 1.0f : 0.0f;
+        }
+        if( strcmp( name, "LeftThumb" ) == 0 )
+        {
+            return SdlKeyDown( keys, SDL_SCANCODE_H ) ? 1.0f : 0.0f;
+        }
+        if( strcmp( name, "RightThumb" ) == 0 )
+        {
+            return SdlKeyDown( keys, SDL_SCANCODE_C ) ? 1.0f : 0.0f;
+        }
+        if( strcmp( name, "A" ) == 0 )
+        {
+            return ( SdlKeyDown( keys, SDL_SCANCODE_SPACE ) || SdlKeyDown( keys, SDL_SCANCODE_RETURN ) ) ? 1.0f : 0.0f;
+        }
+        if( strcmp( name, "B" ) == 0 )
+        {
+            return ( SdlKeyDown( keys, SDL_SCANCODE_ESCAPE ) || SdlKeyDown( keys, SDL_SCANCODE_LSHIFT ) || SdlKeyDown( keys, SDL_SCANCODE_RSHIFT ) ) ? 1.0f : 0.0f;
+        }
+        if( strcmp( name, "X" ) == 0 )
+        {
+            return ( SdlKeyDown( keys, SDL_SCANCODE_LCTRL ) || SdlKeyDown( keys, SDL_SCANCODE_RCTRL ) || SdlKeyDown( keys, SDL_SCANCODE_F ) || ( g_KeyboardMouseButtons & SDL_BUTTON( SDL_BUTTON_LEFT ) ) ) ? 1.0f : 0.0f;
+        }
+        if( strcmp( name, "Y" ) == 0 )
+        {
+            return SdlKeyDown( keys, SDL_SCANCODE_E ) ? 1.0f : 0.0f;
+        }
+        if( strcmp( name, "Black" ) == 0 )
+        {
+            return SdlKeyDown( keys, SDL_SCANCODE_Q ) ? 1.0f : 0.0f;
+        }
+        if( strcmp( name, "White" ) == 0 )
+        {
+            return ( SdlKeyDown( keys, SDL_SCANCODE_H ) || ( g_KeyboardMouseButtons & SDL_BUTTON( SDL_BUTTON_RIGHT ) ) ) ? 1.0f : 0.0f;
+        }
+    }
+    else if( strcmp( type, g_Sdlipt[ 1 ] ) == 0 )
+    {
+        if( strcmp( name, "LeftTrigger" ) == 0 )
+        {
+            return ( SdlKeyDown( keys, SDL_SCANCODE_DOWN ) || SdlKeyDown( keys, SDL_SCANCODE_S ) ) ? 1.0f : 0.0f;
+        }
+        if( strcmp( name, "RightTrigger" ) == 0 )
+        {
+            return ( SdlKeyDown( keys, SDL_SCANCODE_UP ) || SdlKeyDown( keys, SDL_SCANCODE_W ) ) ? 1.0f : 0.0f;
+        }
+    }
+    else if( strcmp( type, g_Sdlipt[ 2 ] ) == 0 )
+    {
+        if( strcmp( name, "LeftStickX" ) == 0 )
+        {
+            return SdlDigitalAxis( SdlKeyDown( keys, SDL_SCANCODE_LEFT ) || SdlKeyDown( keys, SDL_SCANCODE_A ),
+                                   SdlKeyDown( keys, SDL_SCANCODE_RIGHT ) || SdlKeyDown( keys, SDL_SCANCODE_D ) );
+        }
+        if( strcmp( name, "RightStickX" ) == 0 )
+        {
+            const bool left = SdlKeyDown( keys, SDL_SCANCODE_J );
+            const bool right = SdlKeyDown( keys, SDL_SCANCODE_L );
+            if( left || right )
+            {
+                return SdlDigitalAxis( left, right );
+            }
+            return SdlMouseAxis( g_KeyboardMouseDeltaX );
+        }
+    }
+    else if( strcmp( type, g_Sdlipt[ 3 ] ) == 0 )
+    {
+        if( strcmp( name, "LeftStickY" ) == 0 )
+        {
+            return SdlDigitalAxis( SdlKeyDown( keys, SDL_SCANCODE_DOWN ) || SdlKeyDown( keys, SDL_SCANCODE_S ),
+                                   SdlKeyDown( keys, SDL_SCANCODE_UP ) || SdlKeyDown( keys, SDL_SCANCODE_W ) );
+        }
+        if( strcmp( name, "RightStickY" ) == 0 )
+        {
+            const bool down = SdlKeyDown( keys, SDL_SCANCODE_K );
+            const bool up = SdlKeyDown( keys, SDL_SCANCODE_I );
+            if( down || up )
+            {
+                return SdlDigitalAxis( down, up );
+            }
+            return SdlMouseAxis( -g_KeyboardMouseDeltaY );
+        }
+    }
+
+    return 0.0f;
+}
 
 //============================================================================
 // Component: radControllerOutputPointSDL
@@ -278,7 +427,11 @@ class radControllerInputPointSDL
 
         float newValue = 0.0f;
 
-        if ( m_pController != NULL )
+        if ( m_pController == NULL )
+        {
+            newValue = SdlKeyboardControllerValue( m_pType, m_pName );
+        }
+        else
         {
             if ( m_pType == g_Sdlipt[ 0 ] ) // Button
             {
@@ -687,6 +840,12 @@ class radControllerSDL
                 SDL_UpdateGamepads();
 #endif
             }
+            else
+            {
+                SDL_PumpEvents();
+                g_KeyboardMouseButtons = SDL_GetMouseState( NULL, NULL );
+                SDL_GetRelativeMouseState( &g_KeyboardMouseDeltaX, &g_KeyboardMouseDeltaY );
+            }
 
             //
             // Send our output point data to the device here
@@ -708,11 +867,9 @@ class radControllerSDL
                     m_LeftGain =  newLeftGain;
                     m_RightGain = newRightGain;
 
-					rAssert(m_pController != NULL);
-
-                    int result = 0;
-					if(m_pController != NULL)
-					{
+                    if(m_pController != NULL)
+                    {
+                        int result = 0;
 #if SDL_MAJOR_VERSION < 3
                         result = SDL_GameControllerRumble( m_pController,
                             m_LeftGain, m_RightGain, 0 );
@@ -720,7 +877,8 @@ class radControllerSDL
                         result = SDL_RumbleGamepad( m_pController,
                             m_LeftGain, m_RightGain, 0 );
 #endif
-					}
+                        (void)result;
+                    }
 
                     //
                     // Old Controllers don't support output and this will
@@ -794,6 +952,10 @@ class radControllerSDL
 
     virtual bool IsConnected( void )
     {
+        if( m_pController == NULL )
+        {
+            return true;
+        }
 #if SDL_MAJOR_VERSION < 3
         return SDL_GameControllerGetAttached( m_pController ) == SDL_TRUE;
 #else
@@ -1119,11 +1281,11 @@ class radControllerSDL
         // Create our location name based on our port and slot
         //
 #if SDL_MAJOR_VERSION < 3
-        int iController = std::max(SDL_GameControllerGetPlayerIndex( pController ), 0);
+        int iController = pController != NULL ? std::max(SDL_GameControllerGetPlayerIndex( pController ), 0) : 0;
 #else
-        int iController = std::max(SDL_GetGamepadPlayerIndex( pController ), 0);
+        int iController = pController != NULL ? std::max(SDL_GetGamepadPlayerIndex( pController ), 0) : 0;
 #endif
-		m_xIString_Location->SetSize( 12 );
+        m_xIString_Location->SetSize( 12 );
         m_xIString_Location->Append( "Port" );
         m_xIString_Location->Append( (unsigned int) iController );
         m_xIString_Location->Append( "\\Slot0" );
@@ -1662,6 +1824,32 @@ class radControllerSystemSDL
         {
             m_DefaultConnectionChangeCallback = pConnectionChangeCallback;
             RegisterConnectionChangeCallback( pConnectionChangeCallback );
+        }
+
+        // Always expose a keyboard/mouse backed controller in Port0\\Slot0 so
+        // the Linux desktop build is playable without a physical gamepad.  It
+        // uses the same input point names as the SDL gamepad path, allowing the
+        // original console mappings to keep working.
+        {
+            ref< IRadController > xIKeyboardController;
+            unsigned int virtualTime = radTimeGetMilliseconds() + m_VirtualTimeAdjust;
+            unsigned int pollingRate = 10;
+
+            if( m_xITimer != NULL )
+            {
+                pollingRate = m_xITimer->GetTimeout();
+            }
+
+            xIKeyboardController = new (g_ControllerSystemAllocator) radControllerSDL
+            (
+                g_ControllerSystemAllocator,
+                NULL,
+                virtualTime,
+                m_EventBufferTime,
+                pollingRate
+            );
+
+            m_xIOl_Controllers->AddObject( xIKeyboardController );
         }
 
         //

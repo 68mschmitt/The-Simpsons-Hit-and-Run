@@ -31,6 +31,7 @@
 #include <p3d/utility.hpp>
 
 #include <string.h>
+#include <cstdlib>
 
 //========================================
 // Project Includes
@@ -189,19 +190,19 @@ throw( std::bad_alloc )
 #endif
 #endif
 {
-    if( gMemorySystemInitialized == false )
-    {
-        INIT_MEM();
-    }
-
     void* pMemory;
 
     if (g_NoHeapRoute)
     {
-        pMemory = radMemoryAlloc( 0, size );
+        pMemory = std::malloc( size == 0 ? 1 : size );
     }
     else
     {
+        if( gMemorySystemInitialized == false )
+        {
+            INIT_MEM();
+        }
+
         GameMemoryAllocator curr = HeapMgr()->GetCurrentHeap();
         pMemory = AllocateThis( curr, size );
 
@@ -235,7 +236,19 @@ throw()
 #endif
 #endif
 {
-    radMemoryFree( pMemory );
+    if ( pMemory == NULL )
+    {
+        return;
+    }
+
+    if ( g_NoHeapRoute )
+    {
+        std::free( pMemory );
+    }
+    else
+    {
+        radMemoryFree( pMemory );
+    }
 }
 
 
@@ -257,19 +270,19 @@ throw( std::bad_alloc )
 #endif
 #endif
 {
-    if( gMemorySystemInitialized == false )
-    {
-        INIT_MEM();
-    }
-
     void* pMemory;
 
     if (g_NoHeapRoute)
     {
-        pMemory = radMemoryAlloc( 0, size );
+        pMemory = std::malloc( size == 0 ? 1 : size );
     }
     else
     {
+        if( gMemorySystemInitialized == false )
+        {
+            INIT_MEM();
+        }
+
         GameMemoryAllocator curr = HeapMgr()->GetCurrentHeap();
         pMemory = AllocateThis( curr, size );
 
@@ -302,7 +315,19 @@ throw()
 #endif
 #endif
 {
-    radMemoryFree( pMemory );
+    if ( pMemory == NULL )
+    {
+        return;
+    }
+
+    if ( g_NoHeapRoute )
+    {
+        std::free( pMemory );
+    }
+    else
+    {
+        radMemoryFree( pMemory );
+    }
 }
 
 

@@ -202,7 +202,13 @@ void radMoviePlayer::Load( const char * pVideoFileName, unsigned int audioTrackI
 
     const AVCodec* pVideoCodec = NULL;
     int videoTrackIndex = av_find_best_stream( m_pFormatCtx, AVMEDIA_TYPE_VIDEO, -1, -1, &pVideoCodec, 0 );
-    AV_CHK( videoTrackIndex );
+    if( videoTrackIndex < 0 || pVideoCodec == NULL )
+    {
+        rReleasePrintf( "radMoviePlayer: %s has no decodable video stream; skipping FMV\n", pVideoFileName );
+        avformat_close_input( &m_pFormatCtx );
+        SetState( IRadMoviePlayer2::NoData );
+        return;
+    }
     m_VideoTrackIndex = videoTrackIndex;
     AVCodecParameters* pVideoParams = m_pFormatCtx->streams[m_VideoTrackIndex]->codecpar;
     m_pVideoCtx = avcodec_alloc_context3( pVideoCodec );
@@ -213,12 +219,20 @@ void radMoviePlayer::Load( const char * pVideoFileName, unsigned int audioTrackI
     m_pSwsCtx = sws_getContext(
         pVideoParams->width,
         pVideoParams->height,
-        AV_PIX_FMT_YUV420P,
+        static_cast< AVPixelFormat >( pVideoParams->format ),
         pVideoParams->width,
         pVideoParams->height,
         AV_PIX_FMT_BGRA,
         0, NULL, NULL, NULL
     );
+    if( m_pSwsCtx == NULL )
+    {
+        rReleasePrintf( "radMoviePlayer: %s video format cannot be converted; skipping FMV\n", pVideoFileName );
+        avcodec_free_context( &m_pVideoCtx );
+        avformat_close_input( &m_pFormatCtx );
+        SetState( IRadMoviePlayer2::NoData );
+        return;
+    }
 #endif
 
     m_AudioTrackIndex = radMovie_NoAudioTrack;

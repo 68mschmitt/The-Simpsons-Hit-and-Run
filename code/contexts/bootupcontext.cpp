@@ -180,6 +180,15 @@ void BootupContext::StartMovies()
     else
 #endif // !FINAL
     {
+#if defined(RAD_SDL)
+        // The desktop Linux port starts directly at the frontend. The original
+        // .rmv intro files are not consistently decodable through FFmpeg on
+        // modern Linux distributions, and failed movie playback must not block
+        // normal startup/menu access. Keep the skipfe path above intact.
+        GetGameFlow()->SetContext( CONTEXT_FRONTEND );
+        return;
+#endif
+
 #ifdef SHOW_MOVIES
         if( CommandLineOptions::Get( CLO_SKIP_MOVIE ) )
         {

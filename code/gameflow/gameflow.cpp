@@ -51,6 +51,30 @@
 //
 GameFlow* GameFlow::spInstance = NULL;
 
+#ifdef RAD_SDL
+static const char* ContextNameForLog( ContextEnum context )
+{
+    switch( context )
+    {
+        case CONTEXT_ENTRY: return "ENTRY";
+        case CONTEXT_BOOTUP: return "BOOTUP";
+        case CONTEXT_FRONTEND: return "FRONTEND";
+        case CONTEXT_LOADING_DEMO: return "LOADING_DEMO";
+        case CONTEXT_DEMO: return "DEMO";
+        case CONTEXT_SUPERSPRINT_FE: return "SUPERSPRINT_FE";
+        case CONTEXT_LOADING_SUPERSPRINT: return "LOADING_SUPERSPRINT";
+        case CONTEXT_SUPERSPRINT: return "SUPERSPRINT";
+        case CONTEXT_LOADING_GAMEPLAY: return "LOADING_GAMEPLAY";
+        case CONTEXT_GAMEPLAY: return "GAMEPLAY";
+        case CONTEXT_PAUSE: return "PAUSE";
+        case CONTEXT_EXIT: return "EXIT";
+        case NUM_CONTEXTS: return "NUM_CONTEXTS";
+    }
+
+    return "UNKNOWN";
+}
+#endif
+
 
 //******************************************************************************
 //
@@ -263,6 +287,11 @@ void GameFlow::OnTimerDone( unsigned int elapsedtime, void* pUserData )
     // If current and next contexts are different...
     if( mCurrentContext != mNextContext )
     {
+#ifdef RAD_SDL
+        rReleasePrintf( "GameFlow context: %s -> %s\n",
+                        ContextNameForLog( mCurrentContext ),
+                        ContextNameForLog( mNextContext ) );
+#endif
         mpContexts[mCurrentContext]->Stop( mNextContext );
         mpContexts[mNextContext]->Start( mCurrentContext );
         
