@@ -10,12 +10,17 @@
 set -e
 
 if [ "${SKIP_BUILD}" != "1" ]; then
-    cmake -S /src -B /out/build -DSRR2_BUILD_TESTS=OFF > /out/cfg.log 2>&1
+    cmake -S /src -B /out/build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DSRR2_BUILD_TESTS=OFF \
+        -DSRR2_USE_PCH=OFF > /out/cfg.log 2>&1
     cmake --build /out/build -j"$(nproc)" > /out/build.log 2>&1
 fi
 
 export LIBGL_ALWAYS_SOFTWARE=1
 export ALSOFT_DRIVERS=null
+export SDL_VIDEODRIVER=x11
+unset WAYLAND_DISPLAY
 
 RUN_SECONDS="${RUN_SECONDS:-30}"
 

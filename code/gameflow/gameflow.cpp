@@ -16,6 +16,10 @@
 #include <raddebug.hpp>
 #include <radtime.hpp>
 
+#ifdef RAD_SDL
+#include <stdio.h>
+#endif
+
 //========================================
 // Project Includes
 //========================================
@@ -288,9 +292,12 @@ void GameFlow::OnTimerDone( unsigned int elapsedtime, void* pUserData )
     if( mCurrentContext != mNextContext )
     {
 #ifdef RAD_SDL
-        rReleasePrintf( "GameFlow context: %s -> %s\n",
-                        ContextNameForLog( mCurrentContext ),
-                        ContextNameForLog( mNextContext ) );
+        // rReleasePrintf is compiled out in this release configuration, but
+        // desktop smoke tests need durable context breadcrumbs in stdout.
+        ::printf( "GameFlow context: %s -> %s\n",
+                  ContextNameForLog( mCurrentContext ),
+                  ContextNameForLog( mNextContext ) );
+        ::fflush( stdout );
 #endif
         mpContexts[mCurrentContext]->Stop( mNextContext );
         mpContexts[mNextContext]->Start( mCurrentContext );
