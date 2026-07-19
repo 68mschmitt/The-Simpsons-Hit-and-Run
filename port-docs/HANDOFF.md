@@ -1,6 +1,6 @@
 # Handoff: Linux/macOS Port of The Simpsons: Hit & Run
 
-Last updated: 2026-07-18. This document is the current port handoff for
+Last updated: 2026-07-19. This document is the current port handoff for
 `main`. Older proof-of-concept notes are preserved in `initial-poc-plan.md` and
 are historical unless explicitly called out here.
 
@@ -27,6 +27,10 @@ continue desktop stabilization on Linux/macOS.
 - A local non-Docker Xvfb harness exists at
   `tools/linux-runtime/run-local-game.sh`. The Docker harness remains at
   `tools/linux-runtime/run-game.sh`.
+- Save-path policy is WIP on Linux SDL: saves are routed through a synthetic
+  `SAVE:` drive to `$XDG_DATA_HOME/srr2`, `$HOME/.local/share/srr2`, or local
+  `save/` only when HOME/XDG are unavailable. Build/path-selection smoke passed;
+  UI save creation/load still needs validation before treating this as complete.
 
 ## Runtime validation completed on 2026-07-18
 

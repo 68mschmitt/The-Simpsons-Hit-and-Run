@@ -62,6 +62,18 @@ const int MAX_SAVED_GAME_TITLE_LENGTH = 32; // # chars
 char DEFAULT_GAME_DRIVE[radFileDrivenameMax+1]; // for win32, need to store the default.
 #endif
 
+#if defined(RAD_SDL) && defined(__linux__)
+    #define SRR2_LINUX_SDL_SAVE_DRIVE 1
+#else
+    #define SRR2_LINUX_SDL_SAVE_DRIVE 0
+#endif
+
+#if !defined(RAD_WIN32) || SRR2_LINUX_SDL_SAVE_DRIVE
+    #define SRR2_SAVE_DRIVE_REGISTER_ERRORS 1
+#else
+    #define SRR2_SAVE_DRIVE_REGISTER_ERRORS 0
+#endif
+
 const char* SAVE_GAME_DRIVE[] =
 {
 #ifdef RAD_GAMECUBE
@@ -93,7 +105,9 @@ const char* SAVE_GAME_DRIVE[] =
     "MEMCARD4B:",
 #endif
 
-#ifdef RAD_WIN32
+#if SRR2_LINUX_SDL_SAVE_DRIVE
+    "SAVE:",
+#elif defined(RAD_WIN32)
     DEFAULT_GAME_DRIVE,
 #endif
 
@@ -276,7 +290,7 @@ MemoryCardManager::~MemoryCardManager()
         {
             if( m_pDrives[ i ] != NULL )
             {
-#ifndef RAD_WIN32
+#if SRR2_SAVE_DRIVE_REGISTER_ERRORS
                 m_pDrives[ i ]->UnregisterErrorHandler( this );
 #endif
 
@@ -330,7 +344,7 @@ MemoryCardManager::Init( IRadDriveErrorCallback* radDriveErrorCallback )
 
         // register error handler
         //
-#ifndef RAD_WIN32
+#if SRR2_SAVE_DRIVE_REGISTER_ERRORS
         m_pDrives[ i ]->RegisterErrorHandler( this, NULL );
 #endif
     }

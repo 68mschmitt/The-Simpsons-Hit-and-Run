@@ -188,11 +188,13 @@ game is playable without a physical gamepad:
 
 ## Current known gaps
 
-- Full manual controls, real-audio quality, and save/load behavior still need a
-  real desktop pass.
-- If save/load is broken, the next implementation task should define a Linux
-  save directory policy (for example `$XDG_DATA_HOME/srr2`, with a local
-  `save/` fallback) through the existing RAD drive model.
+- Full subjective playability, real-audio quality, and end-to-end save/load UI
+  behavior still need a real desktop pass.
+- Linux save-path policy is committed as WIP: `SAVE:` resolves to
+  `$XDG_DATA_HOME/srr2`, then `$HOME/.local/share/srr2`, then local `save/` only
+  when HOME/XDG are unavailable. Path selection builds and smoke-tests, but
+  actual UI save creation/load still needs validation; see
+  [Runtime Validation Records](runtime-validation.md).
 - Do not reintroduce case-folding to solve path issues. If file loading fails,
   first instrument `radSdlDrive::BuildFileSpec`/open results and fix path
   composition.

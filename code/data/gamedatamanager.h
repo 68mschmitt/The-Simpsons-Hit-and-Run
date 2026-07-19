@@ -206,6 +206,8 @@ private:
     //
     IRadFile* m_radFile;
     eFileOperation m_currentFileOperation;
+    char m_currentSaveGameFilename[ radFileFilenameMax + 1 ];
+    char m_currentSaveGameDriveName[ radFileDrivenameMax + 1 ];
 
 	radFileError m_lastError;
 

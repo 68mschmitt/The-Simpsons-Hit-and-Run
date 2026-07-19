@@ -183,6 +183,13 @@ bool PlatformDrivesValidateDriveName( const char* driveSpec )
     }
 #endif // RAD_GAMECUBE
 
+#if defined(RAD_SDL) && defined(__linux__)
+    if( strcmp( driveSpec, "SAVE:" ) == 0 )
+    {
+        return true;
+    }
+#endif
+
 #ifdef RAD_VITA
     return strcmp(driveSpec, "UX0:") == 0 || strcmp( driveSpec, "APP0:" ) == 0;
 #elif defined __SWITCH__

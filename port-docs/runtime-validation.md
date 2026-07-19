@@ -1,5 +1,60 @@
 # Runtime Validation Records
 
+## 2026-07-19 — WIP Linux save data directory policy
+
+- Repo state: WIP based on `main` at `f0b36e2`; this record is committed with
+  the save-path WIP for continuation.
+- Artifact directories:
+  - `/tmp/srr2-save-validation-20260719T021409Z` — aborted UI save/load probe
+    from the implementation subagent.
+  - `/tmp/srr2-save-state-check-20260719T024625Z` — orchestrator sanity probes
+    for path selection and error/fallback behavior.
+- Build: Release, tests off, PCH off.
+- Result: WIP. The code builds and path-policy smoke probes select the expected
+  Linux save roots, but end-to-end UI save creation/load is not yet validated.
+
+### Implemented WIP behavior
+
+- Adds a Linux SDL synthetic RAD save drive named `SAVE:`.
+- Routes Linux SDL `MemoryCardManager` save I/O to `SAVE:` instead of the
+  default asset-root drive.
+- Resolves save data to `$XDG_DATA_HOME/srr2` when `XDG_DATA_HOME` is a non-empty
+  absolute path; otherwise `$HOME/.local/share/srr2` when `HOME` is a non-empty
+  absolute path; otherwise `save/` below the game-data/current-working directory.
+- Ignores relative `XDG_DATA_HOME` and tries `HOME`, matching the XDG absolute
+  path requirement.
+- If the selected XDG/HOME save directory cannot be created/accessed, marks
+  `SAVE:` unavailable and does not fall back to asset-root writes.
+- Keeps filenames as `Save1` through `Save4` and adds release-visible
+  `SRR2 save:` logs for path selection plus save/load/delete requests/results.
+
+### WIP sanity evidence
+
+| Area | Result | Evidence |
+| --- | --- | --- |
+| Build | PASS | `cmake --build build/native -j$(nproc)` completed and rebuilt `SRR2`. |
+| Diff hygiene | PASS | `git diff --check` passed. |
+| XDG path selection | PASS | `/tmp/srr2-save-state-check-20260719T024625Z/xdg/key.log` shows `source [XDG_DATA_HOME]` and path `/tmp/srr2-save-state-check-20260719T024625Z/xdg/srr2/`. |
+| HOME fallback | PASS | `/tmp/srr2-save-state-check-20260719T024625Z/home/key.log` shows `source [HOME]` and path `/tmp/srr2-save-state-check-20260719T024625Z/home-only/.local/share/srr2/`. |
+| No HOME/XDG fallback | PASS | `/tmp/srr2-save-state-check-20260719T024625Z/fallback/key.log` shows `source [asset-root/cwd fallback]` and path `/tmp/srr2-save-state-check-20260719T024625Z/assets/save/`. |
+| Relative XDG handling | PASS | `/tmp/srr2-save-state-check-20260719T024625Z/relative-xdg/key.log` shows `ignored relative XDG_DATA_HOME` then `source [HOME]`. |
+| Unusable selected XDG path | PASS | `/tmp/srr2-save-state-check-20260719T024625Z/xdg-file-block/key.log` shows create/access failure and `SAVE:` unavailable without asset-root fallback. |
+
+### Remaining validation before promoting out of WIP
+
+- Create a Slot 1 save through the frontend/pause UI with clean `HOME` and
+  `XDG_DATA_HOME`, then verify `<XDG_DATA_HOME>/srr2/Save1` exists.
+- Repeat with `XDG_DATA_HOME` unset and verify `$HOME/.local/share/srr2/Save1`.
+- Repeat with both `HOME` and `XDG_DATA_HOME` unavailable using a disposable
+  asset wrapper and verify `<asset-root>/save/Save1`.
+- Verify no `Save1` or `save/Save1` is written below the asset root when XDG/HOME
+  exists.
+- Load an existing Slot 1 save from the same XDG environment and verify load
+  success logs/game state.
+- No automatic migration/read fallback for legacy Linux `ASSET_ROOT/Save1` files
+  is implemented in this WIP; users can manually copy those files to the new
+  save directory if needed.
+
 ## 2026-07-19 — Linux OpenAL real-device verification
 
 - Repo state: `main` at `891c3b8`.

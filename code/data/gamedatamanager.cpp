@@ -20,6 +20,8 @@
 #include <data/gamedatamanager.h>
 #include <data/savegameinfo.h>
 #include <data/memcard/memorycardmanager.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include <string.h>
 
 #ifndef WORLD_BUILDER
@@ -89,6 +91,37 @@ GameDataManager* GameDataManager::spInstance = NULL;
 #else
     #define PS2_FILENAME_PREFIX ""
 #endif
+
+static void Srr2SaveLog( const char* format, ... )
+{
+#if defined(RAD_SDL)
+    va_list args;
+    va_start( args, format );
+    fprintf( stderr, "SRR2 save: " );
+    vfprintf( stderr, format, args );
+    fprintf( stderr, "\n" );
+    fflush( stderr );
+    va_end( args );
+#else
+    (void)format;
+#endif
+}
+
+static void CopyLogField( char* dest, unsigned int destSize, const char* source )
+{
+    if( destSize == 0 )
+    {
+        return;
+    }
+
+    if( source == NULL )
+    {
+        source = "";
+    }
+
+    strncpy( dest, source, destSize - 1 );
+    dest[ destSize - 1 ] = '\0';
+}
 
 #ifdef DEBUGWATCH
     const char* WATCHER_NAMESPACE = "Game Data Manager";
@@ -224,8 +257,11 @@ GameDataManager::GameDataManager()
     m_isGameLoaded( false ),
     m_saveGameInfoHandler( NULL ),
     m_radFile( NULL ),
-    m_currentFileOperation( FILE_OP_NONE )
+    m_currentFileOperation( FILE_OP_NONE ),
+    m_lastError( Success )
 {
+    m_currentSaveGameFilename[ 0 ] = '\0';
+    m_currentSaveGameDriveName[ 0 ] = '\0';
     rAssertMsg( sizeof( GameDataByte ) == 1,
                 "WARNING: *** Size of GameDataByte is not 1 byte! Is that OK??" );
 
@@ -318,6 +354,7 @@ GameDataManager::Update( unsigned int elapsedTime )
             {
                 if( m_gameDataLoadCallback != NULL )
                 {
+                    Srr2SaveLog( "load callback success: drive [%s] file [%s]", m_currentSaveGameDriveName, m_currentSaveGameFilename );
                     m_gameDataLoadCallback->OnLoadGameComplete( Success );
                 }
 
@@ -328,6 +365,7 @@ GameDataManager::Update( unsigned int elapsedTime )
             {
                 if( m_gameDataSaveCallback != NULL )
                 {
+                    Srr2SaveLog( "save callback success: drive [%s] file [%s]", m_currentSaveGameDriveName, m_currentSaveGameFilename );
                     m_gameDataSaveCallback->OnSaveGameComplete( Success );
                 }
 
@@ -342,6 +380,7 @@ GameDataManager::Update( unsigned int elapsedTime )
             {
                 if( m_gameDataDeleteCallback != NULL )
                 {
+                    Srr2SaveLog( "delete callback complete: drive [%s] file [%s] error=%d", m_currentSaveGameDriveName, m_currentSaveGameFilename, m_lastError );
                     m_gameDataDeleteCallback->OnDeleteGameComplete( m_lastError );
                     m_gameDataDeleteCallback = NULL;
                 }
@@ -434,6 +473,9 @@ GameDataManager::LoadGame( unsigned int slot, GameDataLoadCallback* callback, co
 		strcpy( filename, load_filename ); // filename is passed in for xbox
     IRadDrive* currentDrive = GetMemoryCardManager()->GetCurrentDrive();
     rAssert( currentDrive );
+    CopyLogField( m_currentSaveGameFilename, sizeof( m_currentSaveGameFilename ), filename );
+    CopyLogField( m_currentSaveGameDriveName, sizeof( m_currentSaveGameDriveName ), currentDrive->GetDriveName() );
+    Srr2SaveLog( "load request: drive [%s] file [%s] slot=%u", m_currentSaveGameDriveName, m_currentSaveGameFilename, slot + 1 );
 #ifndef RAD_WIN32
     currentDrive->SaveGameOpenAsync( &m_radFile,
                                      filename,
@@ -481,6 +523,9 @@ radFileError GameDataManager::DeleteGame( const char *fileName,
 	IRadDrive* currentDrive = GetMemoryCardManager()->GetCurrentDrive();
 
 	rAssert( currentDrive );
+    CopyLogField( m_currentSaveGameFilename, sizeof( m_currentSaveGameFilename ), fileName );
+    CopyLogField( m_currentSaveGameDriveName, sizeof( m_currentSaveGameDriveName ), currentDrive->GetDriveName() );
+    Srr2SaveLog( "delete request: drive [%s] file [%s] async=%s", m_currentSaveGameDriveName, m_currentSaveGameFilename, async ? "true" : "false" );
 
     m_lastError = Success;
 
@@ -497,6 +542,7 @@ radFileError GameDataManager::DeleteGame( const char *fileName,
     else
     {
     	currentDrive->DestroyFileSync( fileName, true );
+        Srr2SaveLog( "delete sync complete: drive [%s] file [%s] error=%d", m_currentSaveGameDriveName, m_currentSaveGameFilename, m_lastError );
 	    m_currentFileOperation = FILE_OP_NONE;
     }
 
@@ -563,6 +609,9 @@ GameDataManager::SaveGame( unsigned int slot, GameDataSaveCallback* callback )
 
 	IRadDrive* currentDrive = GetMemoryCardManager()->GetCurrentDrive();
 	rAssert( currentDrive );
+    CopyLogField( m_currentSaveGameFilename, sizeof( m_currentSaveGameFilename ), filename );
+    CopyLogField( m_currentSaveGameDriveName, sizeof( m_currentSaveGameDriveName ), currentDrive->GetDriveName() );
+    Srr2SaveLog( "save request: drive [%s] file [%s] slot=%u", m_currentSaveGameDriveName, m_currentSaveGameFilename, slot + 1 );
 
 #ifdef RAD_XBOX
 	m_saveGameInfoHandler->FormatDisplay(filename, sizeof(filename)); // define filename for xbox
@@ -930,6 +979,7 @@ GameDataManager::OnFileOperationsComplete( void* pUserData )
 
                 m_currentFileOperation = FILE_OP_NONE;
 #endif
+                Srr2SaveLog( "load complete: drive [%s] file [%s] elapsed=%u ms", m_currentSaveGameDriveName, m_currentSaveGameFilename, m_elapsedOperationTime );
                 rReleasePrintf( ">> Load game completed successfully. (%d ms)\n\n",
                                 m_elapsedOperationTime );
             }
@@ -1000,6 +1050,7 @@ GameDataManager::OnFileOperationsComplete( void* pUserData )
 
             m_currentFileOperation = FILE_OP_NONE;
 #endif
+            Srr2SaveLog( "save complete: drive [%s] file [%s] elapsed=%u ms", m_currentSaveGameDriveName, m_currentSaveGameFilename, m_elapsedOperationTime );
             rReleasePrintf( ">> Save game completed successfully. (%d ms)\n\n",
                             m_elapsedOperationTime );
 
@@ -1031,6 +1082,7 @@ GameDataManager::OnDriveOperationsComplete( void* pUserData )
     {
         case FILE_OP_DELETE:
         {
+            Srr2SaveLog( "delete complete: drive [%s] file [%s] error=%d", m_currentSaveGameDriveName, m_currentSaveGameFilename, m_lastError );
             m_currentFileOperation = FILE_OP_DELETE_COMPLETED;
 
             break;
@@ -1053,6 +1105,7 @@ GameDataManager::OnDriveError( radFileError error,
         case FILE_OP_OPEN_FOR_READING:
         case FILE_OP_READ:
         {
+            Srr2SaveLog( "load error: drive [%s] file [%s] error=%d", pDriveName, m_currentSaveGameFilename, error );
             rTunePrintf( "*** Error [%d] occurred on drive [%s] during loading!\n",
                          error, pDriveName );
 
@@ -1091,6 +1144,7 @@ GameDataManager::OnDriveError( radFileError error,
         case FILE_OP_WRITE:
         case FILE_OP_COMMIT:
         {
+            Srr2SaveLog( "save error: drive [%s] file [%s] error=%d", pDriveName, m_currentSaveGameFilename, error );
             rTunePrintf( "*** Error [%d] occurred on drive [%s] during saving!\n",
                          error, pDriveName );
 
@@ -1119,6 +1173,7 @@ GameDataManager::OnDriveError( radFileError error,
         }
         case FILE_OP_DELETE:
         {
+            Srr2SaveLog( "delete error: drive [%s] file [%s] error=%d", pDriveName, m_currentSaveGameFilename, error );
             rTunePrintf( "*** Error [%d] occurred on drive [%s] during deleting!\n",
                          error, pDriveName );
 

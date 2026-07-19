@@ -124,9 +124,9 @@ public:
     CompletionStatus CreateDir( const char* pName );
 
     CompletionStatus DestroyDir( const char* pName );   
+#endif
 
     CompletionStatus DestroyFile( const char* filename );
-#endif
 
 private:
     void SetMediaInfo( void );
@@ -141,6 +141,8 @@ private:
     unsigned int    m_OpenFiles;
     char            m_DriveName[ radFileDrivenameMax + 1 ];
     char            m_DrivePath[ radFileFilenameMax + 1 ];
+    bool            m_IsSaveDrive;
+    bool            m_MediaAvailable;
 
     //
     // Mutex for critical sections
