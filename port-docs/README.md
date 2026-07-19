@@ -24,6 +24,8 @@ run, controls, and runtime-harness instructions.
   reproduction commands, and next triage targets.
 - [Linux Native Port](linux-native-port.md): dependencies, asset setup, build,
   run, Xvfb/Docker smoke commands, and controls.
+- [Runtime Validation Records](runtime-validation.md): dated validation results,
+  artifact paths, coverage, and limitations.
 - [Desktop Build](desktop-build.md): desktop CMake notes.
 - [Initial PoC Plan](initial-poc-plan.md): historical record for the earlier
   non-playable Linux proof of concept.
