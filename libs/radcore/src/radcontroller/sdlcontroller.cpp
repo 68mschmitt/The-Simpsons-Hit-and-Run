@@ -57,6 +57,7 @@ struct IRadControllerSDL
     virtual void iVirtualTimeReMapped( unsigned int virtualTime ) = 0;
     virtual void iVirtualTimeChanged( unsigned int virtualTime ) = 0;
     virtual void iSetBufferTime( unsigned int milliseconds, unsigned int pollingRate ) = 0;
+    virtual bool iIsKeyboardMouse( void ) const = 0;
 };
 
 //============================================================================
@@ -139,13 +140,52 @@ static SDLInputPoint g_SDLPoints[] =
 #endif
 };
 
+// Extra virtual points exposed only by the keyboard/mouse-backed fake controller.
+// SDL gamepads do not get these names, so gameplay mappables can opt into
+// PC-style keyboard semantics without changing native gamepad behavior.
+static SDLInputPoint g_SDLKeyboardOnlyPoints[] =
+{
+    { g_Sdlipt[ 3 ], "KeyboardThrottle",     0 },
+    { g_Sdlipt[ 0 ], "KeyboardJump",         0 },
+    { g_Sdlipt[ 0 ], "KeyboardSprint",       0 },
+    { g_Sdlipt[ 0 ], "KeyboardAction",       0 },
+    { g_Sdlipt[ 0 ], "KeyboardAttack",       0 },
+    { g_Sdlipt[ 0 ], "KeyboardHandBrake",    0 },
+    { g_Sdlipt[ 0 ], "KeyboardHorn",         0 },
+    { g_Sdlipt[ 0 ], "KeyboardReset",        0 },
+    { g_Sdlipt[ 0 ], "KeyboardCameraZoom",   0 },
+    { g_Sdlipt[ 0 ], "KeyboardCameraLookUp", 0 },
+    { g_Sdlipt[ 0 ], "KeyboardFirstPerson",  0 },
+    { g_Sdlipt[ 0 ], "KeyboardCameraToggle", 0 }
+};
+
 static class radControllerSystemSDL* s_pTheSDLControllerSystem2 = NULL;
 static radMemoryAllocator g_ControllerSystemAllocator = RADMEMORY_ALLOC_DEFAULT;
-static int g_KeyboardMouseDeltaX = 0;
-static int g_KeyboardMouseDeltaY = 0;
+static float g_KeyboardMouseDeltaX = 0.0f;
+static float g_KeyboardMouseDeltaY = 0.0f;
 static Uint32 g_KeyboardMouseButtons = 0;
 
-static bool SdlKeyDown( const Uint8* keys, SDL_Scancode scancode )
+#if SDL_MAJOR_VERSION < 3
+typedef Uint8 SdlKeyboardStateValue;
+#else
+typedef bool SdlKeyboardStateValue;
+#endif
+
+static Uint32 SdlMouseButtonMask( int button )
+{
+#if SDL_MAJOR_VERSION < 3
+    return SDL_BUTTON( button );
+#else
+    return SDL_BUTTON_MASK( button );
+#endif
+}
+
+static bool SdlMouseButtonDown( int button )
+{
+    return ( g_KeyboardMouseButtons & SdlMouseButtonMask( button ) ) != 0;
+}
+
+static bool SdlKeyDown( const SdlKeyboardStateValue* keys, SDL_Scancode scancode )
 {
     return keys != NULL && keys[ scancode ] != 0;
 }
@@ -163,7 +203,7 @@ static float SdlDigitalAxis( bool negative, bool positive )
     return 0.5f;
 }
 
-static float SdlMouseAxis( int delta )
+static float SdlMouseAxis( float delta )
 {
     float value = 0.5f + ( static_cast<float>( delta ) / 40.0f );
     if( value < 0.0f )
@@ -177,114 +217,248 @@ static float SdlMouseAxis( int delta )
     return value;
 }
 
+static bool SdlKeyboardMenuButtonValue( const SdlKeyboardStateValue* keys, const char* name, float* value )
+{
+    if( strcmp( name, "DPadUp" ) == 0 )
+    {
+        *value = SdlKeyDown( keys, SDL_SCANCODE_UP ) ? 1.0f : 0.0f;
+        return true;
+    }
+    if( strcmp( name, "DPadDown" ) == 0 )
+    {
+        *value = SdlKeyDown( keys, SDL_SCANCODE_DOWN ) ? 1.0f : 0.0f;
+        return true;
+    }
+    if( strcmp( name, "DPadLeft" ) == 0 )
+    {
+        *value = SdlKeyDown( keys, SDL_SCANCODE_LEFT ) ? 1.0f : 0.0f;
+        return true;
+    }
+    if( strcmp( name, "DPadRight" ) == 0 )
+    {
+        *value = SdlKeyDown( keys, SDL_SCANCODE_RIGHT ) ? 1.0f : 0.0f;
+        return true;
+    }
+    if( strcmp( name, "Start" ) == 0 )
+    {
+        *value = ( SdlKeyDown( keys, SDL_SCANCODE_P ) || SdlKeyDown( keys, SDL_SCANCODE_PAUSE ) ) ? 1.0f : 0.0f;
+        return true;
+    }
+    if( strcmp( name, "Back" ) == 0 || strcmp( name, "B" ) == 0 )
+    {
+        *value = ( SdlKeyDown( keys, SDL_SCANCODE_ESCAPE ) || SdlKeyDown( keys, SDL_SCANCODE_BACKSPACE ) ) ? 1.0f : 0.0f;
+        return true;
+    }
+    if( strcmp( name, "A" ) == 0 )
+    {
+        *value = ( SdlKeyDown( keys, SDL_SCANCODE_SPACE ) || SdlKeyDown( keys, SDL_SCANCODE_RETURN ) ) ? 1.0f : 0.0f;
+        return true;
+    }
+
+    return false;
+}
+
+static bool SdlKeyboardGameplayButtonValue( const SdlKeyboardStateValue* keys, const char* name, float* value )
+{
+    if( strcmp( name, "LeftThumb" ) == 0 )
+    {
+        *value = SdlKeyDown( keys, SDL_SCANCODE_H ) ? 1.0f : 0.0f;
+        return true;
+    }
+    if( strcmp( name, "RightThumb" ) == 0 )
+    {
+        *value = SdlKeyDown( keys, SDL_SCANCODE_C ) ? 1.0f : 0.0f;
+        return true;
+    }
+    if( strcmp( name, "X" ) == 0 )
+    {
+        *value = ( SdlKeyDown( keys, SDL_SCANCODE_LCTRL ) || SdlKeyDown( keys, SDL_SCANCODE_RCTRL ) ||
+                   SdlKeyDown( keys, SDL_SCANCODE_F ) || SdlMouseButtonDown( SDL_BUTTON_LEFT ) ) ? 1.0f : 0.0f;
+        return true;
+    }
+    if( strcmp( name, "Y" ) == 0 )
+    {
+        *value = SdlKeyDown( keys, SDL_SCANCODE_E ) ? 1.0f : 0.0f;
+        return true;
+    }
+    if( strcmp( name, "Black" ) == 0 )
+    {
+        *value = SdlKeyDown( keys, SDL_SCANCODE_Q ) ? 1.0f : 0.0f;
+        return true;
+    }
+    if( strcmp( name, "White" ) == 0 )
+    {
+        *value = SdlMouseButtonDown( SDL_BUTTON_RIGHT ) ? 1.0f : 0.0f;
+        return true;
+    }
+
+    return false;
+}
+
+static bool SdlKeyboardTriggerValue( const SdlKeyboardStateValue* keys, const char* name, float* value )
+{
+    if( strcmp( name, "LeftTrigger" ) == 0 )
+    {
+        *value = SdlKeyDown( keys, SDL_SCANCODE_Z ) ? 1.0f : 0.0f;
+        return true;
+    }
+    if( strcmp( name, "RightTrigger" ) == 0 )
+    {
+        *value = SdlMouseButtonDown( SDL_BUTTON_MIDDLE ) ? 1.0f : 0.0f;
+        return true;
+    }
+
+    return false;
+}
+
+static bool SdlKeyboardMovementAxisValue( const SdlKeyboardStateValue* keys, const char* name, float* value )
+{
+    if( strcmp( name, "LeftStickX" ) == 0 )
+    {
+        *value = SdlDigitalAxis( SdlKeyDown( keys, SDL_SCANCODE_A ),
+                                 SdlKeyDown( keys, SDL_SCANCODE_D ) );
+        return true;
+    }
+    if( strcmp( name, "LeftStickY" ) == 0 )
+    {
+        *value = SdlDigitalAxis( SdlKeyDown( keys, SDL_SCANCODE_S ),
+                                 SdlKeyDown( keys, SDL_SCANCODE_W ) );
+        return true;
+    }
+
+    return false;
+}
+
+static bool SdlKeyboardCameraAxisValue( const SdlKeyboardStateValue* keys, const char* name, float* value )
+{
+    if( strcmp( name, "RightStickX" ) == 0 )
+    {
+        const bool left = SdlKeyDown( keys, SDL_SCANCODE_J );
+        const bool right = SdlKeyDown( keys, SDL_SCANCODE_L );
+        *value = ( left || right ) ? SdlDigitalAxis( left, right ) : SdlMouseAxis( g_KeyboardMouseDeltaX );
+        return true;
+    }
+    if( strcmp( name, "RightStickY" ) == 0 )
+    {
+        const bool down = SdlKeyDown( keys, SDL_SCANCODE_K );
+        const bool up = SdlKeyDown( keys, SDL_SCANCODE_I );
+        *value = ( down || up ) ? SdlDigitalAxis( down, up ) : SdlMouseAxis( -g_KeyboardMouseDeltaY );
+        return true;
+    }
+
+    return false;
+}
+
+static bool SdlKeyboardSemanticButtonValue( const SdlKeyboardStateValue* keys, const char* name, float* value )
+{
+    if( strcmp( name, "KeyboardJump" ) == 0 )
+    {
+        *value = SdlKeyDown( keys, SDL_SCANCODE_SPACE ) ? 1.0f : 0.0f;
+        return true;
+    }
+    if( strcmp( name, "KeyboardSprint" ) == 0 )
+    {
+        *value = ( SdlKeyDown( keys, SDL_SCANCODE_LSHIFT ) || SdlKeyDown( keys, SDL_SCANCODE_RSHIFT ) ) ? 1.0f : 0.0f;
+        return true;
+    }
+    if( strcmp( name, "KeyboardAction" ) == 0 )
+    {
+        *value = SdlKeyDown( keys, SDL_SCANCODE_E ) ? 1.0f : 0.0f;
+        return true;
+    }
+    if( strcmp( name, "KeyboardAttack" ) == 0 )
+    {
+        *value = ( SdlKeyDown( keys, SDL_SCANCODE_LCTRL ) || SdlKeyDown( keys, SDL_SCANCODE_RCTRL ) ||
+                   SdlKeyDown( keys, SDL_SCANCODE_F ) || SdlMouseButtonDown( SDL_BUTTON_LEFT ) ) ? 1.0f : 0.0f;
+        return true;
+    }
+    if( strcmp( name, "KeyboardHandBrake" ) == 0 )
+    {
+        *value = SdlKeyDown( keys, SDL_SCANCODE_SPACE ) ? 1.0f : 0.0f;
+        return true;
+    }
+    if( strcmp( name, "KeyboardHorn" ) == 0 )
+    {
+        *value = ( SdlKeyDown( keys, SDL_SCANCODE_H ) || SdlKeyDown( keys, SDL_SCANCODE_LSHIFT ) || SdlKeyDown( keys, SDL_SCANCODE_RSHIFT ) ) ? 1.0f : 0.0f;
+        return true;
+    }
+    if( strcmp( name, "KeyboardReset" ) == 0 )
+    {
+        *value = ( SdlKeyDown( keys, SDL_SCANCODE_R ) || SdlKeyDown( keys, SDL_SCANCODE_BACKSPACE ) ) ? 1.0f : 0.0f;
+        return true;
+    }
+    if( strcmp( name, "KeyboardCameraZoom" ) == 0 )
+    {
+        *value = SdlKeyDown( keys, SDL_SCANCODE_Z ) ? 1.0f : 0.0f;
+        return true;
+    }
+    if( strcmp( name, "KeyboardCameraLookUp" ) == 0 )
+    {
+        *value = SdlMouseButtonDown( SDL_BUTTON_MIDDLE ) ? 1.0f : 0.0f;
+        return true;
+    }
+    if( strcmp( name, "KeyboardFirstPerson" ) == 0 )
+    {
+        *value = SdlKeyDown( keys, SDL_SCANCODE_C ) ? 1.0f : 0.0f;
+        return true;
+    }
+    if( strcmp( name, "KeyboardCameraToggle" ) == 0 )
+    {
+        *value = SdlKeyDown( keys, SDL_SCANCODE_Q ) ? 1.0f : 0.0f;
+        return true;
+    }
+
+    return false;
+}
+
+static bool SdlKeyboardSemanticAxisValue( const SdlKeyboardStateValue* keys, const char* name, float* value )
+{
+    if( strcmp( name, "KeyboardThrottle" ) == 0 )
+    {
+        *value = SdlDigitalAxis( SdlKeyDown( keys, SDL_SCANCODE_S ),
+                                 SdlKeyDown( keys, SDL_SCANCODE_W ) );
+        return true;
+    }
+
+    return false;
+}
+
 static float SdlKeyboardControllerValue( const char* type, const char* name )
 {
-    const Uint8* keys = SDL_GetKeyboardState( NULL );
+    const SdlKeyboardStateValue* keys = SDL_GetKeyboardState( NULL );
+    float value = 0.0f;
 
     if( strcmp( type, g_Sdlipt[ 0 ] ) == 0 )
     {
-        if( strcmp( name, "DPadUp" ) == 0 )
+        if( SdlKeyboardMenuButtonValue( keys, name, &value ) ||
+            SdlKeyboardGameplayButtonValue( keys, name, &value ) ||
+            SdlKeyboardSemanticButtonValue( keys, name, &value ) )
         {
-            return ( SdlKeyDown( keys, SDL_SCANCODE_UP ) || SdlKeyDown( keys, SDL_SCANCODE_W ) ) ? 1.0f : 0.0f;
-        }
-        if( strcmp( name, "DPadDown" ) == 0 )
-        {
-            return ( SdlKeyDown( keys, SDL_SCANCODE_DOWN ) || SdlKeyDown( keys, SDL_SCANCODE_S ) ) ? 1.0f : 0.0f;
-        }
-        if( strcmp( name, "DPadLeft" ) == 0 )
-        {
-            return ( SdlKeyDown( keys, SDL_SCANCODE_LEFT ) || SdlKeyDown( keys, SDL_SCANCODE_A ) ) ? 1.0f : 0.0f;
-        }
-        if( strcmp( name, "DPadRight" ) == 0 )
-        {
-            return ( SdlKeyDown( keys, SDL_SCANCODE_RIGHT ) || SdlKeyDown( keys, SDL_SCANCODE_D ) ) ? 1.0f : 0.0f;
-        }
-        if( strcmp( name, "Start" ) == 0 )
-        {
-            return ( SdlKeyDown( keys, SDL_SCANCODE_P ) || SdlKeyDown( keys, SDL_SCANCODE_PAUSE ) ) ? 1.0f : 0.0f;
-        }
-        if( strcmp( name, "Back" ) == 0 )
-        {
-            return ( SdlKeyDown( keys, SDL_SCANCODE_R ) || SdlKeyDown( keys, SDL_SCANCODE_BACKSPACE ) ) ? 1.0f : 0.0f;
-        }
-        if( strcmp( name, "LeftThumb" ) == 0 )
-        {
-            return SdlKeyDown( keys, SDL_SCANCODE_H ) ? 1.0f : 0.0f;
-        }
-        if( strcmp( name, "RightThumb" ) == 0 )
-        {
-            return SdlKeyDown( keys, SDL_SCANCODE_C ) ? 1.0f : 0.0f;
-        }
-        if( strcmp( name, "A" ) == 0 )
-        {
-            return ( SdlKeyDown( keys, SDL_SCANCODE_SPACE ) || SdlKeyDown( keys, SDL_SCANCODE_RETURN ) ) ? 1.0f : 0.0f;
-        }
-        if( strcmp( name, "B" ) == 0 )
-        {
-            return ( SdlKeyDown( keys, SDL_SCANCODE_ESCAPE ) || SdlKeyDown( keys, SDL_SCANCODE_LSHIFT ) || SdlKeyDown( keys, SDL_SCANCODE_RSHIFT ) ) ? 1.0f : 0.0f;
-        }
-        if( strcmp( name, "X" ) == 0 )
-        {
-            return ( SdlKeyDown( keys, SDL_SCANCODE_LCTRL ) || SdlKeyDown( keys, SDL_SCANCODE_RCTRL ) || SdlKeyDown( keys, SDL_SCANCODE_F ) || ( g_KeyboardMouseButtons & SDL_BUTTON( SDL_BUTTON_LEFT ) ) ) ? 1.0f : 0.0f;
-        }
-        if( strcmp( name, "Y" ) == 0 )
-        {
-            return SdlKeyDown( keys, SDL_SCANCODE_E ) ? 1.0f : 0.0f;
-        }
-        if( strcmp( name, "Black" ) == 0 )
-        {
-            return SdlKeyDown( keys, SDL_SCANCODE_Q ) ? 1.0f : 0.0f;
-        }
-        if( strcmp( name, "White" ) == 0 )
-        {
-            return ( SdlKeyDown( keys, SDL_SCANCODE_H ) || ( g_KeyboardMouseButtons & SDL_BUTTON( SDL_BUTTON_RIGHT ) ) ) ? 1.0f : 0.0f;
+            return value;
         }
     }
     else if( strcmp( type, g_Sdlipt[ 1 ] ) == 0 )
     {
-        if( strcmp( name, "LeftTrigger" ) == 0 )
+        if( SdlKeyboardTriggerValue( keys, name, &value ) )
         {
-            return ( SdlKeyDown( keys, SDL_SCANCODE_DOWN ) || SdlKeyDown( keys, SDL_SCANCODE_S ) ) ? 1.0f : 0.0f;
-        }
-        if( strcmp( name, "RightTrigger" ) == 0 )
-        {
-            return ( SdlKeyDown( keys, SDL_SCANCODE_UP ) || SdlKeyDown( keys, SDL_SCANCODE_W ) ) ? 1.0f : 0.0f;
+            return value;
         }
     }
     else if( strcmp( type, g_Sdlipt[ 2 ] ) == 0 )
     {
-        if( strcmp( name, "LeftStickX" ) == 0 )
+        if( SdlKeyboardMovementAxisValue( keys, name, &value ) ||
+            SdlKeyboardCameraAxisValue( keys, name, &value ) )
         {
-            return SdlDigitalAxis( SdlKeyDown( keys, SDL_SCANCODE_LEFT ) || SdlKeyDown( keys, SDL_SCANCODE_A ),
-                                   SdlKeyDown( keys, SDL_SCANCODE_RIGHT ) || SdlKeyDown( keys, SDL_SCANCODE_D ) );
-        }
-        if( strcmp( name, "RightStickX" ) == 0 )
-        {
-            const bool left = SdlKeyDown( keys, SDL_SCANCODE_J );
-            const bool right = SdlKeyDown( keys, SDL_SCANCODE_L );
-            if( left || right )
-            {
-                return SdlDigitalAxis( left, right );
-            }
-            return SdlMouseAxis( g_KeyboardMouseDeltaX );
+            return value;
         }
     }
     else if( strcmp( type, g_Sdlipt[ 3 ] ) == 0 )
     {
-        if( strcmp( name, "LeftStickY" ) == 0 )
+        if( SdlKeyboardMovementAxisValue( keys, name, &value ) ||
+            SdlKeyboardCameraAxisValue( keys, name, &value ) ||
+            SdlKeyboardSemanticAxisValue( keys, name, &value ) )
         {
-            return SdlDigitalAxis( SdlKeyDown( keys, SDL_SCANCODE_DOWN ) || SdlKeyDown( keys, SDL_SCANCODE_S ),
-                                   SdlKeyDown( keys, SDL_SCANCODE_UP ) || SdlKeyDown( keys, SDL_SCANCODE_W ) );
-        }
-        if( strcmp( name, "RightStickY" ) == 0 )
-        {
-            const bool down = SdlKeyDown( keys, SDL_SCANCODE_K );
-            const bool up = SdlKeyDown( keys, SDL_SCANCODE_I );
-            if( down || up )
-            {
-                return SdlDigitalAxis( down, up );
-            }
-            return SdlMouseAxis( -g_KeyboardMouseDeltaY );
+            return value;
         }
     }
 
@@ -844,7 +1018,15 @@ class radControllerSDL
             {
                 SDL_PumpEvents();
                 g_KeyboardMouseButtons = SDL_GetMouseState( NULL, NULL );
+#if SDL_MAJOR_VERSION < 3
+                int mouseDeltaX = 0;
+                int mouseDeltaY = 0;
+                SDL_GetRelativeMouseState( &mouseDeltaX, &mouseDeltaY );
+                g_KeyboardMouseDeltaX = static_cast<float>( mouseDeltaX );
+                g_KeyboardMouseDeltaY = static_cast<float>( mouseDeltaY );
+#else
                 SDL_GetRelativeMouseState( &g_KeyboardMouseDeltaX, &g_KeyboardMouseDeltaY );
+#endif
             }
 
             //
@@ -961,6 +1143,11 @@ class radControllerSDL
 #else
         return SDL_GamepadConnected( m_pController );
 #endif
+    }
+
+    virtual bool iIsKeyboardMouse( void ) const
+    {
+        return m_pController == NULL;
     }
 
     //========================================================================
@@ -1291,8 +1478,9 @@ class radControllerSDL
         m_xIString_Location->Append( "\\Slot0" );
 
         //
-        // Create all of our intput points, this is always the same for every
-        // sdl controller.  See static array above.
+        // Create the standard SDL gamepad-compatible input points.  The
+        // keyboard/mouse fallback adds a few keyboard-only semantic points
+        // below so gameplay can avoid overloading movement keys as triggers.
         //
 
         for ( unsigned int button = 0; button < ( sizeof( g_SDLPoints ) / sizeof( SDLInputPoint ) ); button++ )
@@ -1312,6 +1500,28 @@ class radControllerSDL
 			//
 
             pInputPoint->iInitialize( );
+        }
+
+        if ( m_pController == NULL )
+        {
+            for ( unsigned int button = 0; button < ( sizeof( g_SDLKeyboardOnlyPoints ) / sizeof( SDLInputPoint ) ); button++ )
+            {
+                ref< radControllerInputPointSDL > pInputPoint = new( g_ControllerSystemAllocator ) radControllerInputPointSDL
+                (
+                    m_pController,
+                    g_SDLKeyboardOnlyPoints[ button ].m_pType,
+                    g_SDLKeyboardOnlyPoints[ button ].m_pName,
+                    g_SDLKeyboardOnlyPoints[ button ].m_Mask
+                );
+
+                m_xIOl_InputPoints->AddObject( pInputPoint );
+
+                //
+                // Hand the point its first value
+                //
+
+                pInputPoint->iInitialize( );
+            }
         }
 
         if ( m_xIOl_OutputPoints != NULL )
@@ -1409,6 +1619,7 @@ class radControllerSystemSDL
         //
         ref< IRadController > xIController2;
         ref< IRadControllerSDL > xISDLController2;
+        bool existingControllerIsKeyboardMouse = false;
 
         char location[255];
 
@@ -1425,6 +1636,7 @@ class radControllerSystemSDL
         {
             xISDLController2 = (IRadControllerSDL*)xIController2.m_pInterface;
             rAssert( xISDLController2 != NULL );
+            existingControllerIsKeyboardMouse = xISDLController2->iIsKeyboardMouse();
         }
 
 #if SDL_MAJOR_VERSION < 3
@@ -1437,11 +1649,12 @@ class radControllerSystemSDL
             // Here a device has been inserted, so open it
             //
 
-            if( xISDLController2 == NULL )
+            if( xISDLController2 == NULL || existingControllerIsKeyboardMouse )
             {
                 //
-                // Here the controller at this location has not yet been 
-                // constructed, so construct a new controller
+                // Here the controller at this location has not yet been
+                // constructed, or only the keyboard/mouse fallback is there,
+                // so construct a new physical controller.
                 //
 
                 unsigned int virtualTime = 0;
@@ -1568,8 +1781,9 @@ class radControllerSystemSDL
     )
     {
         //
-        // Just loop through all of the controllers asking it for its location
-        // if we find a match, return it.
+        // Just loop through all of the controllers asking it for its location.
+        // Prefer a real SDL gamepad over the keyboard/mouse fallback when both
+        // occupy Port0\\Slot0, so native gamepad behavior remains unchanged.
         //
 
         rAssert( pLocation != NULL );
@@ -1577,16 +1791,25 @@ class radControllerSystemSDL
         m_xIOl_Controllers->Reset( );
 
         IRadController * pIC2;
+        IRadController * pKeyboardMouseFallback = NULL;
 
         while ((pIC2 = reinterpret_cast< IRadControllerSDL * >( m_xIOl_Controllers->GetNext( ) )))
         {
             if ( strcmp( pIC2->GetLocation(), pLocation ) == 0 )
             {
-                return pIC2;
+                IRadControllerSDL* pISDLController = (IRadControllerSDL*)pIC2;
+                if ( pISDLController != NULL && pISDLController->iIsKeyboardMouse() )
+                {
+                    pKeyboardMouseFallback = pIC2;
+                }
+                else
+                {
+                    return pIC2;
+                }
             }
         }
 
-        return NULL;
+        return pKeyboardMouseFallback;
     }
 
     //========================================================================

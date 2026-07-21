@@ -84,6 +84,20 @@ void SuperCamController::LoadControllerMappings( unsigned int controllerId )
 {
     #if defined(RAD_CONSOLE) && defined(RAD_WIN32) || defined(RAD_XBOX)
     ClearMap(0);
+#ifdef RAD_SDL
+    if ( Map( "KeyboardCameraZoom", zToggle, 0, controllerId ) )
+    {
+        Map( "RightStickX",             stickX,             0, controllerId );
+        Map( "RightStickY",             stickY,             0, controllerId );
+        Map( "KeyboardCameraLookUp",    lookToggle,         0, controllerId );
+        Map( "KeyboardJump",            A,                  0, controllerId );
+        Map( "KeyboardFirstPerson",     toggleFirstPerson,  0, controllerId );
+        Map( "LeftStickY",              leftStickY,         0, controllerId );
+        Map( "Start",                   start,              0, controllerId );
+        Map( "KeyboardCameraToggle",    cameraToggle,       0, controllerId );
+        return;
+    }
+#endif
     Map( "RightStickX",     stickX,             0, controllerId );
     Map( "RightStickY",     stickY,             0, controllerId );
     Map( "LeftTrigger",     zToggle,            0, controllerId );

@@ -105,6 +105,18 @@ void VehicleMappable::LoadControllerMappings( unsigned int controllerId )
     #if defined(RAD_XBOX) || defined(RAD_CONSOLE) && defined(RAD_WIN32)
 
     ClearMap(0);
+#ifdef RAD_SDL
+    if ( Map( "KeyboardThrottle", Throttle, 0, controllerId ) )
+    {
+        Map( "LeftStickX", Steer, 0, controllerId );
+        Map( "DPadLeft", SteerLeft, 0, controllerId );
+        Map( "DPadRight", SteerRight, 0, controllerId );
+        Map( "KeyboardHandBrake", HandBrake, 0, controllerId );
+        Map( "KeyboardHorn", Horn, 0, controllerId );
+        Map( "KeyboardReset", Reset, 0, controllerId );
+        return;
+    }
+#endif
     Map( "LeftStickX", Steer, 0, controllerId );
 	Map( "DPadLeft", SteerLeft, 0, controllerId );
 	Map( "DPadRight", SteerRight, 0, controllerId );

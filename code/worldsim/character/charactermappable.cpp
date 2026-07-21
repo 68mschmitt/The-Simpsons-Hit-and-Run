@@ -110,6 +110,21 @@ void CharacterMappable::LoadControllerMappings( unsigned int controllerId )
 {
 #if defined(RAD_XBOX) || defined(RAD_CONSOLE) && defined(RAD_WIN32)
 	ClearMap( 0 );
+#ifdef RAD_SDL
+    if ( Map( "KeyboardSprint", CharacterController::Dash, 0, controllerId ) )
+    {
+        Map( "LeftStickX", CharacterController::LeftStickX, 0, controllerId );
+        Map( "LeftStickY", CharacterController::LeftStickY, 0, controllerId );
+        Map( "DPadUp", CharacterController::DPadUp, 0, controllerId );
+        Map( "DPadDown", CharacterController::DPadDown, 0, controllerId );
+        Map( "DPadLeft", CharacterController::DPadLeft, 0, controllerId );
+        Map( "DPadRight", CharacterController::DPadRight, 0, controllerId );
+        Map( "KeyboardAction", CharacterController::DoAction, 0, controllerId );
+        Map( "KeyboardJump", CharacterController::Jump, 0, controllerId );
+        Map( "KeyboardAttack", CharacterController::Attack, 0, controllerId );
+        return;
+    }
+#endif
 	Map( "LeftStickX", CharacterController::LeftStickX, 0, controllerId );
     Map( "LeftStickY", CharacterController::LeftStickY, 0, controllerId );
     Map( "DPadUp", CharacterController::DPadUp, 0, controllerId );
