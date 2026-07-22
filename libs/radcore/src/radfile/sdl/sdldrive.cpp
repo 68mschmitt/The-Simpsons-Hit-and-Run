@@ -35,6 +35,7 @@
 #include <SDL.h>
 #if defined(__linux__)
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <sys/types.h>
 #include <unistd.h>
 #endif
@@ -65,6 +66,37 @@ namespace
     bool IsAbsoluteLinuxPath( const char* path )
     {
         return path != NULL && path[ 0 ] == '/';
+    }
+
+    bool IsNoFreeSpaceError( int error )
+    {
+        if( error == ENOSPC )
+        {
+            return true;
+        }
+
+#ifdef EDQUOT
+        if( error == EDQUOT )
+        {
+            return true;
+        }
+#endif
+
+        return false;
+    }
+
+    unsigned int GetAvailableSpace( const struct statvfs& filesystemInfo )
+    {
+        const unsigned long blockSize = filesystemInfo.f_frsize != 0
+            ? filesystemInfo.f_frsize
+            : filesystemInfo.f_bsize;
+
+        if( blockSize == 0 || filesystemInfo.f_bavail > UINT_MAX / blockSize )
+        {
+            return UINT_MAX;
+        }
+
+        return static_cast<unsigned int>( filesystemInfo.f_bavail * blockSize );
     }
 
     bool SafeCopyPath( char* dest, unsigned int destSize, const char* source, const char* sourceName )
@@ -628,7 +660,16 @@ radDrive::CompletionStatus radSdlDrive::OpenFile
                          SDL_GetError() );
         }
 #endif
-        m_LastError = ( openErrno == ENOENT ) ? FileNotFound : HardwareFailure;
+#if defined(RAD_SDL) && defined(__linux__)
+        if( m_IsSaveDrive && IsNoFreeSpaceError( openErrno ) )
+        {
+            m_LastError = NoFreeSpace;
+        }
+        else
+#endif
+        {
+            m_LastError = ( openErrno == ENOENT ) ? FileNotFound : HardwareFailure;
+        }
         return Error;
     }
 }
@@ -758,12 +799,12 @@ radDrive::CompletionStatus radSdlDrive::WriteFile
     //
     // Failed!
     //
+    const int writeErrno = errno;
 #if defined(RAD_SDL) && defined(__linux__)
     if( m_IsSaveDrive )
     {
         char fullName[ radFileFilenameMax + 1 ];
         BuildFileSpec( fileName, fullName, radFileFilenameMax + 1 );
-        const int writeErrno = errno;
         Srr2SaveLog( "write failed: drive [%s] file [%s] path [%s] position=%u bytes=%u wrote=%u errno=%d (%s) sdl=[%s]",
                      m_DriveName,
                      fileName,
@@ -774,6 +815,12 @@ radDrive::CompletionStatus radSdlDrive::WriteFile
                      writeErrno,
                      strerror( writeErrno ),
                      SDL_GetError() );
+
+        if( IsNoFreeSpaceError( writeErrno ) )
+        {
+            m_LastError = NoFreeSpace;
+            return Error;
+        }
     }
 #endif
     m_LastError = HardwareFailure;
@@ -1030,29 +1077,43 @@ void radSdlDrive::SetMediaInfo( void )
         return;
     }
 
-    /*
-    if(!error)
+#if defined(RAD_SDL) && defined(__linux__)
+    if( m_IsSaveDrive )
     {
-        m_MediaInfo.m_MediaState = IRadDrive::MediaInfo::MediaPresent;
-        m_MediaInfo.m_FreeSpace = space.free;
+        struct statvfs filesystemInfo;
+        if( statvfs( m_DrivePath, &filesystemInfo ) == 0 )
+        {
+            m_MediaInfo.m_MediaState = IRadDrive::MediaInfo::MediaPresent;
+            m_MediaInfo.m_FreeSpace = GetAvailableSpace( filesystemInfo );
+            m_MediaInfo.m_FreeFiles = m_MediaInfo.m_FreeSpace / m_MediaInfo.m_SectorSize;
+            m_LastError = Success;
+            return;
+        }
 
-        //
-        // No file limit, so set it to the available space
-        //
-        m_MediaInfo.m_FreeFiles = space.available / m_MediaInfo.m_SectorSize;
-        m_LastError = Success;
-    }
-    else
-    */
-    {
-        //
-        // Don't have media info, so fill structure in with dummy info
-        //
+        const int statvfsErrno = errno;
+        Srr2SaveLog( "free-space query failed: drive [%s] path [%s] errno=%d (%s)",
+                     m_DriveName,
+                     m_DrivePath,
+                     statvfsErrno,
+                     strerror( statvfsErrno ) );
+
+        // The save directory is still present, but without a reliable space
+        // measurement we must not advertise any empty slots as writable.
         m_MediaInfo.m_MediaState = IRadDrive::MediaInfo::MediaPresent;
-        m_MediaInfo.m_FreeSpace = UINT_MAX;
-        m_MediaInfo.m_FreeFiles = m_MediaInfo.m_FreeSpace / m_MediaInfo.m_SectorSize;
+        m_MediaInfo.m_FreeSpace = 0;
+        m_MediaInfo.m_FreeFiles = 0;
         m_LastError = Success;
+        return;
     }
+#endif
+
+    //
+    // Non-save SDL drives do not expose capacity information.
+    //
+    m_MediaInfo.m_MediaState = IRadDrive::MediaInfo::MediaPresent;
+    m_MediaInfo.m_FreeSpace = UINT_MAX;
+    m_MediaInfo.m_FreeFiles = m_MediaInfo.m_FreeSpace / m_MediaInfo.m_SectorSize;
+    m_LastError = Success;
 }
 
 //=============================================================================

@@ -17,6 +17,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 COPY run-game.sh /usr/local/bin/run-game.sh
-RUN chmod +x /usr/local/bin/run-game.sh
+COPY validate-assets.sh /usr/local/lib/srr2/validate-assets.sh
+RUN chmod +x /usr/local/bin/run-game.sh /usr/local/lib/srr2/validate-assets.sh
 
 CMD ["/usr/local/bin/run-game.sh"]

@@ -8,18 +8,14 @@ Keep `RAD_PC` undefined.
 
 ## Linux
 
-Dependencies (apt): `cmake libsdl2-dev libpng-dev libopenal-dev` plus FFmpeg dev
-packages (`libavformat-dev libavcodec-dev libavutil-dev libswresample-dev
-libswscale-dev`) and `zlib1g-dev`.
+Use the [README Linux quickstart](../README.md#linux-quickstart) for the
+supported user install (`cmake --install ... --prefix "$HOME/.local"`) and
+current Ubuntu/Debian, Arch, and Fedora package commands. Use
+`tools/linux-runtime/dev-run.sh --data-dir /path/to/assets -- skipfe` for the
+source-tree configure/build/run loop. The complete asset, launcher, and Xvfb
+troubleshooting reference is [linux-native-port.md](linux-native-port.md).
 
-```sh
-cmake -S . -B build/native -DCMAKE_BUILD_TYPE=Release -DSRR2_BUILD_TESTS=OFF -DSRR2_USE_PCH=OFF
-cmake --build build/native -j$(nproc)
-```
-
-Validated 2026-07-18 with retail PC assets on Linux under Xvfb/llvmpipe. See
-`port-docs/linux-native-port.md` and `port-docs/HANDOFF.md` for exact smoke-test
-commands and artifacts.
+Validated 2026-07-18 with retail PC assets on Linux under Xvfb/llvmpipe.
 
 ## macOS
 
@@ -44,32 +40,22 @@ Notes:
 
 ## Running
 
-The game needs retail PC assets. Run the executable with the working directory
-set to an asset root containing at least:
-
-```text
-art/
-movies/
-scripts/
-sound/
-simpsons.ini
-```
-
-Retail RCF archives such as `dialog.rcf`, `music00.rcf`-`music03.rcf`,
-`ambience.rcf`, `carsound.rcf`, `nis.rcf`, `scripts.rcf`, and `soundfx.rcf`
-should be present at the asset root when using a full PC install.
-
-Example:
+On Linux, configure a lawful retail PC install once and use the launcher; it
+validates the case-sensitive asset tree and changes into it before starting the
+game:
 
 ```sh
-cd "/tmp/shar-assets/The Simpsons - Hit & Run"
-/path/to/repo/build/native/code/SRR2
-/path/to/repo/build/native/code/SRR2 skipfe
+srr2 --set-data-dir "/path/to/The Simpsons - Hit & Run"
+srr2
+srr2 skipfe
 ```
 
-Keep Linux asset lookup case-sensitive and deterministic. If a future asset dump
-has path problems, instrument RAD file path composition before changing lookup
-behavior; do not add case-folding as a first response.
+The full installation includes retail RCF archives such as `dialog.rcf`,
+`music00.rcf`-`music03.rcf`, `ambience.rcf`, `carsound.rcf`, `nis.rcf`,
+`scripts.rcf`, and `soundfx.rcf`. For macOS, run the built executable with its
+working directory set to the retail PC asset root. Keep Linux asset lookup
+case-sensitive and deterministic; do not add case-folding as a first response
+to missing files.
 
 ## Provenance
 

@@ -1,22 +1,57 @@
 <h2 align=center>Simpsons Hit & Run 2003 Source Code</h2>
 
-## Linux native build
+## Linux quickstart
 
-This checkout includes a playable SDL/OpenGL Linux target (`SRR2`) using the restored RAD/Pure3D middleware under `libs/` and the ported game code under `code/`.
+The native SDL2/OpenGL build needs a lawful retail PC data installation. The
+launcher keeps that data outside this checkout, validates it before launch, and
+runs the game from the required asset working directory.
 
-See [port-docs/linux-native-port.md](port-docs/linux-native-port.md) for dependencies, required PC game data, controls, and validation notes.
+Install build prerequisites for your distribution:
+
+```sh
+# Ubuntu/Debian
+sudo apt install build-essential cmake pkg-config libsdl2-dev libpng-dev libopenal-dev libavformat-dev libavcodec-dev libavutil-dev libswresample-dev libswscale-dev zlib1g-dev p7zip-full
+
+# Arch
+sudo pacman -S --needed cmake gcc pkgconf sdl2-compat libpng openal ffmpeg zlib p7zip
+
+# Fedora
+sudo dnf install gcc-c++ cmake pkgconf-pkg-config SDL2-devel libpng-devel openal-soft-devel ffmpeg-devel zlib-devel p7zip
+```
+
+Build and install into your user prefix:
 
 ```sh
 cmake -S . -B build/native -DCMAKE_BUILD_TYPE=Release -DSRR2_BUILD_TESTS=OFF -DSRR2_USE_PCH=OFF
 cmake --build build/native -j$(nproc)
+cmake --install build/native --prefix "$HOME/.local"
 ```
 
-Run from a PC game-data directory containing `art/`, `movies/`, `scripts/`, `sound/`, and `simpsons.ini`:
+Ensure `$HOME/.local/bin` is on `PATH`, then point the launcher at the existing
+retail installation and run it:
 
 ```sh
-cd "/path/to/The Simpsons - Hit & Run"
-/path/to/repo/build/native/code/SRR2
+srr2 --set-data-dir "/path/to/The Simpsons - Hit & Run"
+srr2
+# Development shortcut: srr2 skipfe
 ```
+
+To extract a supported `.rar`, `.zip`, or `.7z` retail archive into
+`$XDG_DATA_HOME/srr2/assets` (or `$HOME/.local/share/srr2/assets`), use
+`srr2 --setup-assets /path/to/archive`. It requires `7z` and never copies an
+existing retail directory into the repository.
+
+For source-tree development, one command configures, incrementally builds, and
+uses the same launcher validation:
+
+```sh
+tools/linux-runtime/dev-run.sh --data-dir "/path/to/The Simpsons - Hit & Run" -- skipfe
+```
+
+See [port-docs/linux-native-port.md](port-docs/linux-native-port.md) for data
+requirements, headless smoke tests, troubleshooting, and runtime details. See
+[docs/sdl-keyboard-mouse-controls.md](docs/sdl-keyboard-mouse-controls.md) for
+the current SDL keyboard/mouse controls.
 
 <br>
 

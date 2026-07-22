@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=The Simpsons: Hit & Run
+Comment=Run the native Linux version of The Simpsons: Hit & Run
+Exec=srr2
+Icon=srr2
+Terminal=false
+Categories=Game;

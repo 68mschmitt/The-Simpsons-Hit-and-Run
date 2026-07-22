@@ -22,6 +22,7 @@ if [ ! -d "$ASSET_ROOT" ]; then
     echo "asset root does not exist: $ASSET_ROOT" >&2
     exit 2
 fi
+"$REPO_ROOT/tools/linux-runtime/validate-assets.sh" -- "$ASSET_ROOT"
 
 OUT_DIR="${OUT_DIR:-/tmp/srr2-linux-runtime-$(date +%Y%m%d-%H%M%S)}"
 BUILD_DIR="${BUILD_DIR:-$REPO_ROOT/build/native}"

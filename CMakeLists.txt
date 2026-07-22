@@ -1,6 +1,13 @@
-cmake_minimum_required(VERSION 3.6.3...3.10)
+# cmake --install is part of the supported Linux quickstart.
+cmake_minimum_required(VERSION 3.15)
 
 project(SRR2)
+
+# The native Linux install is intentionally small: the retail game data stays
+# outside the package and is selected by the installed launcher.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+	include(GNUInstallDirs)
+endif()
 
 set(SRR2_TITLE "Simpsons Hit & Run")
 set(SRR2_VERSION "00.61")
@@ -142,6 +149,46 @@ endif()
 
 add_subdirectory(libs)
 add_subdirectory(code)
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+	install(TARGETS ${PROJECT_NAME}
+		RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+	)
+	install(PROGRAMS
+		"${CMAKE_SOURCE_DIR}/tools/linux-runtime/srr2-launch"
+		DESTINATION "${CMAKE_INSTALL_BINDIR}"
+		RENAME srr2
+	)
+	# Keep the validator next to the launcher so both installed and source-tree
+	# launch paths use exactly the same preflight checks.
+	install(PROGRAMS
+		"${CMAKE_SOURCE_DIR}/tools/linux-runtime/validate-assets.sh"
+		DESTINATION "${CMAKE_INSTALL_BINDIR}"
+		RENAME srr2-validate-assets
+	)
+	install(FILES
+		"${CMAKE_SOURCE_DIR}/tools/linux-runtime/srr2.desktop"
+		DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/applications"
+	)
+	install(FILES
+		"${CMAKE_SOURCE_DIR}/sce_sys/icon0.png"
+		DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/128x128/apps"
+		RENAME srr2.png
+	)
+	install(FILES
+		"${CMAKE_SOURCE_DIR}/README.md"
+		DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/doc/${PROJECT_NAME}"
+	)
+	# Preserve the source-tree relative documentation links after installation.
+	install(FILES
+		"${CMAKE_SOURCE_DIR}/port-docs/linux-native-port.md"
+		DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/doc/${PROJECT_NAME}/port-docs"
+	)
+	install(FILES
+		"${CMAKE_SOURCE_DIR}/docs/sdl-keyboard-mouse-controls.md"
+		DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/doc/${PROJECT_NAME}/docs"
+	)
+endif()
 
 if(VITA)
 	## Create Vita files

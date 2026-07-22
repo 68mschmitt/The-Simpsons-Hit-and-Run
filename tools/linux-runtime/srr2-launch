@@ -1,0 +1,547 @@
+#!/usr/bin/env bash
+# Linux launcher for the native SRR2 build. The engine resolves retail assets
+# from its working directory, so this script validates the data tree and changes
+# to it before replacing itself with the game process.
+set -u
+
+readonly LAUNCHER_VERSION="1.0"
+
+usage() {
+    cat <<'EOF'
+Usage: srr2 [launcher options] [--] [game arguments]
+
+Launch The Simpsons: Hit & Run from a validated retail PC data directory.
+Game arguments are passed through unchanged; for example, `srr2 skipfe` starts
+straight in gameplay.
+
+Launcher options:
+  --data-dir PATH          Use PATH for this launch (does not change config).
+  --set-data-dir PATH      Validate PATH and save it as the default data root.
+  --setup-assets PATH      Record a retail install directory, or extract a
+                           .rar, .zip, or .7z archive into the user data dir.
+  --allow-repo-assets      Permit --setup-assets to extract below a source tree.
+  --print-config           Print launcher, data, and executable resolution.
+  --version                Print the launcher version.
+  -h, --help               Show this help text.
+
+Data directory precedence: --data-dir, SRR2_DATA_DIR, the user config file,
+then a valid current/managed/Steam data directory. The user config contains a
+single literal line: DATA_DIR=/path/to/The Simpsons - Hit & Run
+EOF
+}
+
+die() {
+    local status=$1
+    shift
+    printf 'srr2: %s\n' "$*" >&2
+    exit "$status"
+}
+
+is_absolute_path() {
+    [[ ${1:-} == /* ]]
+}
+
+canonical_directory() {
+    (cd -P -- "$1" 2>/dev/null && pwd)
+}
+
+canonical_file() {
+    local directory base
+    directory=$(dirname -- "$1")
+    base=$(basename -- "$1")
+    directory=$(canonical_directory "$directory") || return 1
+    printf '%s/%s\n' "$directory" "$base"
+}
+
+# Resolve $0/BASH_SOURCE through symlinks, so the launcher can be invoked via
+# PATH or a user-created symlink without depending on the caller's CWD.
+SOURCE=${BASH_SOURCE[0]}
+if [[ $SOURCE != /* ]]; then
+    SOURCE="$(cd -P -- "$(dirname -- "$SOURCE")" && pwd)/$(basename -- "$SOURCE")"
+fi
+while [[ -h $SOURCE ]]; do
+    LINK_TARGET=$(readlink -- "$SOURCE") || die 127 "cannot resolve launcher symlink: $SOURCE"
+    if [[ $LINK_TARGET == /* ]]; then
+        SOURCE=$LINK_TARGET
+    else
+        SOURCE="$(cd -P -- "$(dirname -- "$SOURCE")" && pwd)/$LINK_TARGET"
+    fi
+done
+readonly LAUNCHER_PATH=$SOURCE
+readonly LAUNCHER_DIR="$(cd -P -- "$(dirname -- "$LAUNCHER_PATH")" && pwd)"
+
+REPO_ROOT=""
+if [[ -f "$LAUNCHER_DIR/../../CMakeLists.txt" ]]; then
+    REPO_ROOT=$(canonical_directory "$LAUNCHER_DIR/../..") || true
+fi
+
+CONFIG_DIR=""
+if is_absolute_path "${XDG_CONFIG_HOME:-}"; then
+    CONFIG_DIR="${XDG_CONFIG_HOME}/srr2"
+elif is_absolute_path "${HOME:-}"; then
+    CONFIG_DIR="${HOME}/.config/srr2"
+fi
+if [[ -n $CONFIG_DIR ]]; then
+    CONFIG_FILE="$CONFIG_DIR/config"
+else
+    CONFIG_FILE=""
+fi
+
+CONFIG_DATA_DIR=""
+read_config_data_dir() {
+    local line value
+    [[ -n $CONFIG_FILE && -f $CONFIG_FILE ]] || return 0
+
+    # Do not source this file: it is data, not a shell script. The last literal
+    # DATA_DIR= line wins so an update remains simple and human-editable.
+    while IFS= read -r line || [[ -n $line ]]; do
+        line=${line%$'\r'}
+        case $line in
+            DATA_DIR=*)
+                value=${line#DATA_DIR=}
+                if [[ -n $value ]]; then
+                    CONFIG_DATA_DIR=$value
+                fi
+                ;;
+        esac
+    done < "$CONFIG_FILE"
+}
+read_config_data_dir
+
+VALIDATOR=""
+find_validator() {
+    local candidate
+    [[ -n $VALIDATOR ]] && return 0
+    for candidate in \
+        "$LAUNCHER_DIR/validate-assets.sh" \
+        "$LAUNCHER_DIR/srr2-validate-assets" \
+        "$LAUNCHER_DIR/../libexec/srr2/validate-assets.sh"; do
+        if [[ -x $candidate ]]; then
+            VALIDATOR=$candidate
+            return 0
+        fi
+    done
+
+    printf 'srr2: asset validator is missing next to the launcher; reinstall SRR2.\n' >&2
+    return 127
+}
+
+validate_assets() {
+    local root=$1
+    local quiet=${2:-0}
+    find_validator || return $?
+    if [[ $quiet == 1 ]]; then
+        "$VALIDATOR" -- "$root" >/dev/null 2>&1
+    else
+        "$VALIDATOR" -- "$root" >/dev/null
+    fi
+}
+
+write_config() {
+    local data_dir=$1 temporary
+    [[ $data_dir != *$'\n'* && $data_dir != *$'\r'* ]] || die 2 "data directory cannot contain a newline"
+    [[ -n $CONFIG_FILE ]] || die 2 "cannot determine a config directory; set an absolute XDG_CONFIG_HOME or HOME"
+
+    if ! mkdir -p -- "$CONFIG_DIR"; then
+        die 2 "cannot create config directory: $CONFIG_DIR"
+    fi
+    temporary=$(umask 077; mktemp "$CONFIG_DIR/config.XXXXXX") || die 2 "cannot create config file in: $CONFIG_DIR"
+    if ! printf '# SRR2 Linux launcher configuration\nDATA_DIR=%s\n' "$data_dir" > "$temporary"; then
+        rm -f -- "$temporary"
+        die 2 "cannot write config file: $CONFIG_FILE"
+    fi
+    chmod 600 -- "$temporary" 2>/dev/null || true
+    if ! mv -f -- "$temporary" "$CONFIG_FILE"; then
+        rm -f -- "$temporary"
+        die 2 "cannot update config file: $CONFIG_FILE"
+    fi
+
+    CONFIG_DATA_DIR=$data_dir
+    printf 'srr2: default data directory saved in %s\n' "$CONFIG_FILE"
+}
+
+set_data_dir() {
+    local requested=$1 resolved
+    resolved=$(canonical_directory "$requested") || die 2 "data directory does not exist or is not a directory: $requested"
+    validate_assets "$resolved" 0 || die 2 "data directory is incomplete: $resolved"
+    write_config "$resolved"
+}
+
+DATA_DIR=""
+DATA_SOURCE=""
+DATA_CANDIDATE=""
+REQUESTED_DATA_DIR=""
+
+# Return 0 for a valid selected root, 1 for an invalid explicitly configured
+# root, and 3 when no valid auto-discovered root exists. The optional quiet
+# argument suppresses validation diagnostics for --print-config.
+select_data_dir() {
+    local quiet=${1:-0}
+    local candidate resolved
+    local -a common_paths=()
+
+    DATA_DIR=""
+    DATA_SOURCE=""
+    DATA_CANDIDATE=""
+
+    if [[ -n $REQUESTED_DATA_DIR ]]; then
+        candidate=$REQUESTED_DATA_DIR
+        DATA_SOURCE="--data-dir"
+    elif [[ -n ${SRR2_DATA_DIR:-} ]]; then
+        candidate=$SRR2_DATA_DIR
+        DATA_SOURCE="SRR2_DATA_DIR"
+    elif [[ -n $CONFIG_DATA_DIR ]]; then
+        candidate=$CONFIG_DATA_DIR
+        DATA_SOURCE="config file"
+    else
+        # A direct launch from a retail directory remains convenient, while the
+        # managed location is where --setup-assets extracts archives.
+        common_paths+=("$PWD")
+        if is_absolute_path "${XDG_DATA_HOME:-}"; then
+            common_paths+=("${XDG_DATA_HOME}/srr2/assets")
+        fi
+        if is_absolute_path "${HOME:-}"; then
+            common_paths+=(
+                "${HOME}/.local/share/srr2/assets"
+                "${HOME}/.steam/steam/steamapps/common/The Simpsons - Hit & Run"
+                "${HOME}/.local/share/Steam/steamapps/common/The Simpsons - Hit & Run"
+                "${HOME}/Games/The Simpsons - Hit & Run"
+            )
+        fi
+
+        for candidate in "${common_paths[@]}"; do
+            [[ -d $candidate ]] || continue
+            resolved=$(canonical_directory "$candidate") || continue
+            if validate_assets "$resolved" 1; then
+                DATA_DIR=$resolved
+                DATA_SOURCE="auto-discovered"
+                DATA_CANDIDATE=$resolved
+                return 0
+            fi
+        done
+        return 3
+    fi
+
+    DATA_CANDIDATE=$candidate
+    resolved=$(canonical_directory "$candidate") || {
+        if [[ $quiet != 1 ]]; then
+            printf 'srr2: %s data directory does not exist or is not a directory: %s\n' "$DATA_SOURCE" "$candidate" >&2
+        fi
+        return 1
+    }
+    if ! validate_assets "$resolved" "$quiet"; then
+        if [[ $quiet != 1 ]]; then
+            printf 'srr2: %s data directory is incomplete: %s\n' "$DATA_SOURCE" "$resolved" >&2
+        fi
+        return 1
+    fi
+
+    DATA_DIR=$resolved
+    DATA_CANDIDATE=$resolved
+    return 0
+}
+
+print_data_setup_message() {
+    cat >&2 <<'EOF'
+srr2: no validated retail PC game data was found.
+
+Set an existing lawful retail PC installation:
+  srr2 --set-data-dir "/path/to/The Simpsons - Hit & Run"
+
+Or extract a supported archive outside the source tree into the managed user
+location:
+  srr2 --setup-assets "/path/to/The Simpsons - Hit & Run.rar"
+
+You can also use one launch only with:
+  srr2 --data-dir "/path/to/The Simpsons - Hit & Run" [game arguments]
+
+Required entries are: art/, movies/, scripts/, sound/, simpsons.ini, and the
+frontend files below art/frontend/. See `srr2 --help` for precedence details.
+EOF
+}
+
+ALLOW_REPO_ASSETS=0
+archive_cleanup_dir=""
+cleanup_archive() {
+    if [[ -n $archive_cleanup_dir && -d $archive_cleanup_dir ]]; then
+        rm -rf -- "$archive_cleanup_dir"
+    fi
+}
+
+# Return success when PATH is below any Git worktree. This also catches a
+# symlinked XDG data directory after its parent has been resolved physically.
+is_inside_git_worktree() {
+    local directory=$1 parent
+    while :; do
+        [[ -e "$directory/.git" ]] && return 0
+        parent=$(dirname -- "$directory")
+        [[ $parent != "$directory" ]] || return 1
+        directory=$parent
+    done
+}
+
+setup_assets() {
+    local source=$1 source_file data_home assets_dir extract_root candidate
+    local diagnostic_root valid_count
+
+    if [[ -d $source ]]; then
+        # Existing installs are only recorded. Retail files are never copied by
+        # the launcher, particularly not into a source checkout.
+        set_data_dir "$source"
+        return 0
+    fi
+    [[ -f $source ]] || die 2 "setup source does not exist: $source"
+
+    shopt -s nocasematch
+    if [[ ! $source =~ \.(rar|zip|7z)$ ]]; then
+        shopt -u nocasematch
+        die 2 "unsupported archive (expected .rar, .zip, or .7z): $source"
+    fi
+    shopt -u nocasematch
+    command -v 7z >/dev/null 2>&1 || die 127 "7z is required to extract archives (install p7zip-full, p7zip, or p7zip)"
+
+    source_file=$(canonical_file "$source") || die 2 "cannot resolve archive path: $source"
+    if is_absolute_path "${XDG_DATA_HOME:-}"; then
+        data_home=$XDG_DATA_HOME
+    elif is_absolute_path "${HOME:-}"; then
+        data_home="${HOME}/.local/share"
+    else
+        die 2 "cannot determine a managed asset directory; set an absolute XDG_DATA_HOME or HOME"
+    fi
+    assets_dir="$data_home/srr2/assets"
+    # Create and resolve only the destination parent before extraction. This
+    # makes a symlinked XDG data directory visible to the Git-worktree guard.
+    if ! mkdir -p -- "$(dirname -- "$assets_dir")"; then
+        die 2 "cannot create managed asset parent directory: $(dirname -- "$assets_dir")"
+    fi
+    assets_dir="$(canonical_directory "$(dirname -- "$assets_dir")")/$(basename -- "$assets_dir")" || die 2 "cannot resolve managed asset directory"
+    if [[ $ALLOW_REPO_ASSETS -ne 1 ]] && is_inside_git_worktree "$assets_dir"; then
+        die 2 "refusing to extract retail data into a Git worktree: $assets_dir (use --allow-repo-assets to override)"
+    fi
+
+    if [[ -e $assets_dir ]]; then
+        if validate_assets "$assets_dir" 1; then
+            printf 'srr2: using existing managed assets: %s\n' "$assets_dir"
+            set_data_dir "$assets_dir"
+            return 0
+        fi
+        die 2 "managed asset directory already exists and is incomplete; refusing to overwrite: $assets_dir"
+    fi
+
+    extract_root=$(mktemp -d "$(dirname -- "$assets_dir")/.srr2-assets.XXXXXX") || die 2 "cannot create extraction directory"
+    archive_cleanup_dir=$extract_root
+    trap cleanup_archive EXIT INT TERM
+
+    printf 'srr2: extracting archive to a temporary directory...\n'
+    if ! 7z x -y "-o${extract_root}" "$source_file"; then
+        die 2 "archive extraction failed: $source_file"
+    fi
+
+    candidate=""
+    valid_count=0
+    if validate_assets "$extract_root" 1; then
+        candidate=$extract_root
+        valid_count=1
+    fi
+    while IFS= read -r -d '' diagnostic_root; do
+        if validate_assets "$diagnostic_root" 1; then
+            candidate=$diagnostic_root
+            valid_count=$((valid_count + 1))
+        fi
+    done < <(find "$extract_root" -mindepth 1 -maxdepth 2 -type d -print0)
+
+    if [[ $valid_count -ne 1 ]]; then
+        diagnostic_root=$extract_root
+        # Archives normally contain exactly one top-level game directory. Use
+        # it for useful missing-path diagnostics when extraction was incomplete.
+        while IFS= read -r -d '' candidate; do
+            diagnostic_root=$candidate
+            break
+        done < <(find "$extract_root" -mindepth 1 -maxdepth 1 -type d -print0)
+        printf 'srr2: archive did not contain exactly one valid retail data root.\n' >&2
+        validate_assets "$diagnostic_root" 0 || true
+        die 2 "asset validation failed after extracting: $source_file"
+    fi
+
+    if [[ $candidate == "$extract_root" ]]; then
+        mv -- "$extract_root" "$assets_dir" || die 2 "cannot move extracted assets to: $assets_dir"
+        archive_cleanup_dir=""
+    else
+        mv -- "$candidate" "$assets_dir" || die 2 "cannot move extracted assets to: $assets_dir"
+        rm -rf -- "$extract_root"
+        archive_cleanup_dir=""
+    fi
+    trap - EXIT INT TERM
+
+    validate_assets "$assets_dir" 0 || die 2 "asset validation failed after installation: $assets_dir"
+    printf 'srr2: managed assets installed at: %s\n' "$assets_dir"
+    set_data_dir "$assets_dir"
+}
+
+GAME_EXECUTABLE=""
+find_game_executable() {
+    local candidate
+    if [[ -n ${SRR2_EXECUTABLE:-} ]]; then
+        candidate=$SRR2_EXECUTABLE
+        if [[ ! -f $candidate || ! -x $candidate ]]; then
+            printf 'srr2: SRR2_EXECUTABLE is not an executable file: %s\n' "$candidate" >&2
+            return 127
+        fi
+        GAME_EXECUTABLE=$(canonical_file "$candidate") || return 127
+        return 0
+    fi
+
+    for candidate in \
+        "$LAUNCHER_DIR/SRR2" \
+        "$LAUNCHER_DIR/../libexec/srr2/SRR2" \
+        "$REPO_ROOT/build/native/code/SRR2" \
+        "$REPO_ROOT/build/code/SRR2"; do
+        [[ -n $candidate && -f $candidate && -x $candidate ]] || continue
+        GAME_EXECUTABLE=$(canonical_file "$candidate") || continue
+        return 0
+    done
+
+    printf 'srr2: SRR2 executable was not found. Build it with tools/linux-runtime/dev-run.sh or reinstall SRR2.\n' >&2
+    return 127
+}
+
+ACTION=""
+ACTION_VALUE=""
+set_action() {
+    local action=$1 value=${2:-}
+    [[ -z $ACTION ]] || die 2 "only one of --set-data-dir, --setup-assets, or --print-config may be used"
+    ACTION=$action
+    ACTION_VALUE=$value
+}
+
+print_config() {
+    local selection_status executable_status
+    printf 'launcher: %s\n' "$LAUNCHER_PATH"
+    if [[ -n $CONFIG_FILE ]]; then
+        printf 'config file: %s\n' "$CONFIG_FILE"
+    else
+        printf 'config file: <unavailable: set absolute XDG_CONFIG_HOME or HOME>\n'
+    fi
+    printf 'configured DATA_DIR: %s\n' "${CONFIG_DATA_DIR:-<not set>}"
+    printf 'SRR2_DATA_DIR: %s\n' "${SRR2_DATA_DIR:-<not set>}"
+
+    select_data_dir 1
+    selection_status=$?
+    find_game_executable >/dev/null 2>&1
+    executable_status=$?
+
+    if [[ $selection_status -eq 0 ]]; then
+        printf 'selected data directory: %s (%s)\n' "$DATA_DIR" "$DATA_SOURCE"
+    elif [[ -n $DATA_CANDIDATE ]]; then
+        printf 'selected data directory: %s (%s; invalid)\n' "$DATA_CANDIDATE" "$DATA_SOURCE"
+    else
+        printf 'selected data directory: <none found>\n'
+    fi
+    if [[ $executable_status -eq 0 ]]; then
+        printf 'executable: %s\n' "$GAME_EXECUTABLE"
+    else
+        printf 'executable: <not found>\n'
+    fi
+}
+
+declare -a GAME_ARGS=()
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --data-dir)
+            [[ $# -ge 2 && -n ${2:-} ]] || die 2 "--data-dir requires a path"
+            REQUESTED_DATA_DIR=$2
+            shift 2
+            ;;
+        --data-dir=*)
+            REQUESTED_DATA_DIR=${1#--data-dir=}
+            [[ -n $REQUESTED_DATA_DIR ]] || die 2 "--data-dir requires a path"
+            shift
+            ;;
+        --set-data-dir)
+            [[ $# -ge 2 && -n ${2:-} ]] || die 2 "--set-data-dir requires a path"
+            set_action set "$2"
+            shift 2
+            ;;
+        --set-data-dir=*)
+            set_action set "${1#--set-data-dir=}"
+            [[ -n $ACTION_VALUE ]] || die 2 "--set-data-dir requires a path"
+            shift
+            ;;
+        --setup-assets)
+            [[ $# -ge 2 && -n ${2:-} ]] || die 2 "--setup-assets requires a directory or archive"
+            set_action setup "$2"
+            shift 2
+            ;;
+        --setup-assets=*)
+            set_action setup "${1#--setup-assets=}"
+            [[ -n $ACTION_VALUE ]] || die 2 "--setup-assets requires a directory or archive"
+            shift
+            ;;
+        --allow-repo-assets)
+            ALLOW_REPO_ASSETS=1
+            shift
+            ;;
+        --print-config)
+            set_action print
+            shift
+            ;;
+        --version)
+            printf 'srr2 launcher %s\n' "$LAUNCHER_VERSION"
+            exit 0
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        --)
+            shift
+            GAME_ARGS+=("$@")
+            break
+            ;;
+        *)
+            GAME_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+
+case $ACTION in
+    set)
+        [[ ${#GAME_ARGS[@]} -eq 0 && -z $REQUESTED_DATA_DIR ]] || die 2 "--set-data-dir cannot be combined with launch arguments or --data-dir"
+        set_data_dir "$ACTION_VALUE"
+        exit 0
+        ;;
+    setup)
+        [[ ${#GAME_ARGS[@]} -eq 0 && -z $REQUESTED_DATA_DIR ]] || die 2 "--setup-assets cannot be combined with launch arguments or --data-dir"
+        setup_assets "$ACTION_VALUE"
+        exit 0
+        ;;
+    print)
+        [[ ${#GAME_ARGS[@]} -eq 0 ]] || die 2 "--print-config cannot be combined with game arguments"
+        print_config
+        exit 0
+        ;;
+esac
+
+for argument in "${GAME_ARGS[@]}"; do
+    # CommandLineOptions currently copies each token into a 256-byte C buffer
+    # and indexes option[0]/option[-1] for non-empty tokens. Measure bytes,
+    # not locale characters, before handing an argument to that legacy parser.
+    [[ -n $argument ]] || die 2 "empty game arguments are not supported"
+    argument_bytes=$(LC_ALL=C printf '%s' "$argument" | wc -c)
+    (( argument_bytes < 256 )) || die 2 "game argument is too long (maximum 255 bytes)"
+done
+
+if select_data_dir 0; then
+    :
+else
+    selection_status=$?
+    if [[ $selection_status -eq 3 ]]; then
+        print_data_setup_message
+    fi
+    exit 2
+fi
+find_game_executable || exit $?
+
+cd -- "$DATA_DIR" || die 2 "cannot enter data directory: $DATA_DIR"
+exec "$GAME_EXECUTABLE" "${GAME_ARGS[@]}"

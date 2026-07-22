@@ -9,6 +9,8 @@
 # shortly before the timeout (view with xwud, GIMP, or `magick x:...`).
 set -e
 
+/usr/local/lib/srr2/validate-assets.sh -- /assets
+
 if [ "${SKIP_BUILD}" != "1" ]; then
     cmake -S /src -B /out/build \
         -DCMAKE_BUILD_TYPE=Release \
