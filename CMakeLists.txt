@@ -21,6 +21,7 @@ option(SRR2_USE_BINK "Use RAD Game Tools Bink SDK instead of FFmpeg" OFF)
 option(SRR2_BUILD_TESTS "Build sample programs for internal libraries" ON)
 option(SRR2_MICROPROFILE "Use microprofile instead of the internal profiler" OFF)
 option(SRR2_P3D_CG "Use CG shaders rather than GLSL for OpenGL ES" OFF)
+option(SRR2_BUILD_SAVE_MANAGER "Build the Go native save manager on Linux when Go is available" ON)
 set(SRR2_P3D_PDDI "OpenGL" CACHE STRING "Pure3D PDDI implementation")
 if(VITA)
 	option(SRR2_USE_VITAGL "Use VitaGL as an OpenGL (ES) implementation" ON)
@@ -151,6 +152,44 @@ add_subdirectory(libs)
 add_subdirectory(code)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+	if(SRR2_BUILD_SAVE_MANAGER)
+		find_program(SRR2_GO_EXECUTABLE go)
+		if(SRR2_GO_EXECUTABLE)
+			execute_process(
+				COMMAND "${SRR2_GO_EXECUTABLE}" version
+				OUTPUT_VARIABLE SRR2_GO_VERSION_OUTPUT
+				OUTPUT_STRIP_TRAILING_WHITESPACE
+				ERROR_QUIET
+			)
+			string(REGEX MATCH "go([0-9]+\\.[0-9]+\\.[0-9]+)" SRR2_GO_VERSION_MATCH "${SRR2_GO_VERSION_OUTPUT}")
+			set(SRR2_GO_VERSION "${CMAKE_MATCH_1}")
+			if(SRR2_GO_VERSION AND NOT SRR2_GO_VERSION VERSION_LESS "1.26.5")
+				file(GLOB_RECURSE SRR2_SAVE_MANAGER_SOURCES CONFIGURE_DEPENDS
+					"${CMAKE_SOURCE_DIR}/tools/savegame/*.go"
+				)
+				set(SRR2_SAVE_MANAGER_BINARY "${CMAKE_CURRENT_BINARY_DIR}/srr2-save")
+				add_custom_command(
+					OUTPUT "${SRR2_SAVE_MANAGER_BINARY}"
+					COMMAND "${SRR2_GO_EXECUTABLE}" build -trimpath -o "${SRR2_SAVE_MANAGER_BINARY}" ./cmd/srr2-save
+					WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tools/savegame"
+					DEPENDS ${SRR2_SAVE_MANAGER_SOURCES}
+						"${CMAKE_SOURCE_DIR}/tools/savegame/go.mod"
+						"${CMAKE_SOURCE_DIR}/tools/savegame/go.sum"
+					COMMENT "Building srr2-save"
+					VERBATIM
+				)
+				add_custom_target(srr2-save-tool ALL DEPENDS "${SRR2_SAVE_MANAGER_BINARY}")
+				install(PROGRAMS "${SRR2_SAVE_MANAGER_BINARY}"
+					DESTINATION "${CMAKE_INSTALL_BINDIR}"
+				)
+			else()
+				message(STATUS "${SRR2_GO_VERSION_OUTPUT} is too old or unrecognized; srr2-save requires Go 1.26.5+")
+			endif()
+		else()
+			message(STATUS "Go was not found; set SRR2_BUILD_SAVE_MANAGER=OFF or install Go 1.26.5+ to build srr2-save")
+		endif()
+	endif()
+
 	install(TARGETS ${PROJECT_NAME}
 		RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
 	)
@@ -182,7 +221,12 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 	# Preserve the source-tree relative documentation links after installation.
 	install(FILES
 		"${CMAKE_SOURCE_DIR}/port-docs/linux-native-port.md"
+		"${CMAKE_SOURCE_DIR}/port-docs/savegame-tool.md"
 		DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/doc/${PROJECT_NAME}/port-docs"
+	)
+	install(FILES
+		"${CMAKE_SOURCE_DIR}/tools/savegame/README.md"
+		DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/doc/${PROJECT_NAME}/tools/savegame"
 	)
 	install(FILES
 		"${CMAKE_SOURCE_DIR}/docs/sdl-keyboard-mouse-controls.md"

@@ -10,13 +10,13 @@ Install build prerequisites for your distribution:
 
 ```sh
 # Ubuntu/Debian
-sudo apt install build-essential cmake pkg-config libsdl2-dev libpng-dev libopenal-dev libavformat-dev libavcodec-dev libavutil-dev libswresample-dev libswscale-dev zlib1g-dev p7zip-full
+sudo apt install build-essential cmake pkg-config golang-go libsdl2-dev libpng-dev libopenal-dev libavformat-dev libavcodec-dev libavutil-dev libswresample-dev libswscale-dev zlib1g-dev p7zip-full
 
 # Arch
-sudo pacman -S --needed cmake gcc pkgconf sdl2-compat libpng openal ffmpeg zlib p7zip
+sudo pacman -S --needed cmake gcc pkgconf go sdl2-compat libpng openal ffmpeg zlib p7zip
 
 # Fedora
-sudo dnf install gcc-c++ cmake pkgconf-pkg-config SDL2-devel libpng-devel openal-soft-devel ffmpeg-devel zlib-devel p7zip
+sudo dnf install gcc-c++ cmake pkgconf-pkg-config golang SDL2-devel libpng-devel openal-soft-devel ffmpeg-devel zlib-devel p7zip
 ```
 
 Build and install into your user prefix:
@@ -51,7 +51,9 @@ tools/linux-runtime/dev-run.sh --data-dir "/path/to/The Simpsons - Hit & Run" --
 See [port-docs/linux-native-port.md](port-docs/linux-native-port.md) for data
 requirements, headless smoke tests, troubleshooting, and runtime details. See
 [docs/sdl-keyboard-mouse-controls.md](docs/sdl-keyboard-mouse-controls.md) for
-the current SDL keyboard/mouse controls.
+the current SDL keyboard/mouse controls. The native Go/Charm interactive save
+manager is documented in [port-docs/savegame-tool.md](port-docs/savegame-tool.md)
+and needs Go 1.26.5 or newer when built from source.
 
 <br>
 

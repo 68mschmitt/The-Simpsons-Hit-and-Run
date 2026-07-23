@@ -1,6 +1,7 @@
 .vs/
 out/
 build/
+tools/savegame/srr2-save
 switch/
 romfs/
 module/
